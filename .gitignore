@@ -1,0 +1,8 @@
+.DS_Store
+*.log
+
+portal/node_modules/
+portal/dist/
+
+labs/captures/*
+!labs/captures/.gitkeep
