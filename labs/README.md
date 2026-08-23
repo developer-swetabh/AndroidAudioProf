@@ -13,25 +13,38 @@ Use this on an **Android 15** device or emulator while the symptom is happening.
 | `04_audio_policy.txt` | Decision photograph (ports, routes, mixes) |
 | `05_audio_service.txt` | Java focus / volume / devices |
 | `06_car_audio.txt` | Zones, groups, contexts (empty-ish on phones — that is OK) |
-| `07_logcat_ring.txt` | Last ~2000 `threadtime` lines (unfiltered ring) |
-| `07_logcat_threadtime.txt` | Same ring, filtered to the audio tags below |
-| `08_asound.txt` | Kernel PCM list if the shell can see it |
+| `06b_car_media.txt` | CarMediaService (source switch / prefs race). Empty on phones — OK |
+| `07_logcat_ring.txt` | Last ~4000 `threadtime` lines, buffers `main,system,crash` (unfiltered) |
+| `07_logcat_threadtime.txt` | Same ring, split: AOSP/client tags then Qualcomm-like vendor tags |
+| `08_asound.txt` | Cards, PCM list, first playback `status` if sysfs exists |
 | `NOTES.txt` | Template for your symptom sentence |
 
-Logcat filter tags in `07_logcat_threadtime.txt`:
+Logcat cannot take glob tags (`AHAL_*`, `pal_stream*`). The script parses the **tag field** of `threadtime` (not the whole line — so `pal` will not match “application”).
+
+**AOSP / client**
 
 | Tag | Why |
 | --- | --- |
-| `AudioTrack` / `AudioRecord` / `AudioManager` / `AudioService` | Client and Java service |
-| `AudioFlinger` / `APM_AudioPolicyManager` | Native execute / decide |
+| `AAudio` / `AAudioStream` | Native client (Oboe usually still logs as AAudio) |
+| `AudioTrack` / `AudioRecord` / `AudioManager` / `AudioService` | Java client and service |
+| `AudioFlinger` / `FastMixer` / `AudioHwDevice` | Execute / HAL wrapper |
+| `APM_AudioPolicyManager` / `AudioPolicyService` / `android.hardware.audio` | Decide + AIDL binder |
 | `CarAudioService` / `CarAudioFocus` / `CAR.MEDIA` | AAOS routing, focus, car media |
-| `MediaSessionService` / `MediaFocusControl` | Media session + phone-style focus |
-| `android.hardware.audio` | AIDL HAL binder side |
-| `AHAL_StreamOut_QTI` and any `AHAL_*` | Qualcomm AIDL HAL stream/module (vendor; prefix match) |
+| `MediaSessionService` / `MediaFocusControl` / `VolumeShaper` / `FadeOutManager` | Session, focus, fade |
 
-`AHAL_*` cannot be passed to `logcat` as a glob. The script keeps every ring line whose tag starts with `AHAL_`.
+**Qualcomm-like (vendor — names vary by CAF branch)**
 
-It does **not** grab 200 MB of logcat or vendor DSP traces. Add those only after last-known-good says you need them.
+| Tag / prefix | Why |
+| --- | --- |
+| `AHAL_*` | QTI AIDL HAL stream/module (`AHAL_StreamOut_QTI`, …) |
+| `PAL` / `PalClient` / `PalStream` / `pal_stream*` | PAL is **HLOS**. Stream type is often in the *message* (`StreamPCM`) with tag `PAL`. Not a DSP log. |
+| `AGM` / `agm_server` / `AGM_*` | Audio Graph Manager — graph PAL asked for. Typical tag is `AGM`, not `agm_pcm`. |
+| `SessionAlsa*` / `GSL` | PAL session → ALSA/GSL toward the DSP on some chips |
+| `ACDB` / `GPR` / `APR` | Cal / IPC crumbs in logcat. **ADSP/AFE still wants QXDM/QCAT.** |
+
+If your BSP prints a different tag, copy that string from `07_logcat_ring.txt` — do **not** invent PAL module IDs. QXDM last, and only after AOSP dumps look mixed/healthy.
+
+It does **not** grab 200 MB of logcat or vendor DSP traces.
 
 ## How to run
 

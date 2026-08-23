@@ -20,8 +20,9 @@ adb shell dumpsys car_service --services CarAudioService > /tmp/car.txt`,
   {
     id: "logcat",
     title: "3. logcat threadtime",
-    body: "Movie of events. You need tid to tell FastMixer from Binder. Absence of a line is not health.",
-    cmd: `adb logcat -v threadtime -b main,system,crash -d > /tmp/logcat.txt`,
+    body: "Movie of events. You need tid to tell FastMixer from Binder. Absence of a line is not health. Prefer the lab script filter: AAudio, AudioFlinger, PAL/AGM/AHAL as *tags* (not a whole-line grep for pal).",
+    cmd: `adb logcat -v threadtime -b main,system,crash -d > /tmp/logcat.txt
+# or: ./labs/capture_audio_lab.sh --label <symptom>`,
   },
   {
     id: "perfetto",
