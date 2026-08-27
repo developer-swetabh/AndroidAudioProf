@@ -12,7 +12,11 @@ npm run dev
 
 Open the URL Vite prints (default http://localhost:5173).
 
-## Phase 8 (this ship)
+## Phase 9 (this ship)
+
+Lifecycle studio: `createTrack` vs `play()`, MixerThread period (FastMixer helper, Direct/Offload skip mix), two-bus vs shared, two STANDBYs, Policy room. Architecture zooms Flinger and Policy. Learn 06 binds the studio; Fundamentals still owns the four PlaybackThreads.
+
+## Phase 8
 
 Config studio on Architecture: AAOS/AOSP XML contracts (car map, fade, policy ports, CAP, flags, vendor mixer_paths). Markdown in modules 07/12/13/14 stays the essay.
 
@@ -25,6 +29,7 @@ Progression: Module 24 gates A–H, layer × depth skill matrix, next-module rec
 | `#/debug` · `#/debug/:playbook` | Live — 10 playbooks |
 | `#/learn` · `#/learn/:id` | Live — chrome + bound flow |
 | `#/architecture` | Live — pipeline |
+| `#/architecture/life/:scene/:step` | Live — Lifecycle studio (create / period / bus / standby / policy) |
 | `#/architecture/xml/:id` | Live — Config studio (car / fade / policy / flags) |
 | `#/fundamentals` | Live — PCM studio |
 | `#/glossary` | Live |

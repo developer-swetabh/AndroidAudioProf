@@ -58,7 +58,8 @@ export const LESSONS = {
     related: [
       { href: "#/learn/02", label: "Module 02 · architecture" },
       { href: "#/architecture/media", label: "Architecture · phone media" },
-      { href: "#/learn/22", label: "Module 22 · source hops" },
+      { href: "#/architecture/life/create", label: "Lifecycle · createTrack vs play()" },
+      { href: "#/architecture/life/period", label: "Lifecycle · period" },
     ],
   },
   "03": {
@@ -67,6 +68,8 @@ export const LESSONS = {
     related: [
       { href: "#/learn/08", label: "Next · Module 08 HAL" },
       { href: "#/learn/02", label: "Module 02" },
+      { href: "#/architecture/life/create", label: "Lifecycle · createTrack" },
+      { href: "#/architecture/life/policy", label: "Lifecycle · Policy room" },
       { href: "#/learn/07", label: "Module 07 · routing" },
     ],
   },
@@ -89,13 +92,14 @@ export const LESSONS = {
     ],
   },
   "06": {
-    diagramId: "fund-embed",
-    kicker: "Direct / Offload skip the mixer, not Flinger. FastMixer is not a third HAL output.",
-    args: { board: "pipes" },
+    diagramId: "lifecycle",
+    kicker: "createTrack routes. play() starts the clock. Direct/Offload skip the mixer, not Flinger.",
+    args: { scene: "period" },
     related: [
+      { href: "#/architecture/life", label: "Lifecycle studio" },
       { href: "#/fundamentals", label: "Fundamentals · threads" },
       { href: "#/learn/08", label: "Module 08 · burst" },
-      { href: "#/learn/15", label: "Module 15 · latency" },
+      { href: "#/architecture/life/standby", label: "Lifecycle · two STANDBYs" },
     ],
   },
   "07": {
@@ -103,8 +107,8 @@ export const LESSONS = {
     kicker: "Possible ports ≠ live patch. AVAILABLE is not “Flinger moved.”",
     related: [
       { href: "#/architecture/xml/audio-policy-configuration", label: "Config · policy XML" },
+      { href: "#/architecture/life/policy", label: "Lifecycle · Policy room" },
       { href: "#/learn/05", label: "Module 05 · usage" },
-      { href: "#/learn/13", label: "Module 13 · AAOS buses" },
     ],
   },
   "08": {
@@ -152,6 +156,7 @@ export const LESSONS = {
     },
     related: [
       { href: "#/architecture/navduck", label: "Architecture · two-bus" },
+      { href: "#/architecture/life/bus", label: "Lifecycle · two-bus vs shared" },
       { href: "#/architecture/xml", label: "Config XML" },
       { href: "#/learn/13", label: "Module 13 · zones" },
       { href: "#/learn/05", label: "Module 05 · usage" },
@@ -175,6 +180,7 @@ export const LESSONS = {
     },
     related: [
       { href: "#/architecture/navduck", label: "Architecture · two-bus" },
+      { href: "#/architecture/life/bus", label: "Lifecycle · two-bus vs shared" },
       { href: "#/architecture/xml/car-audio-fade", label: "Config · fade XML" },
       { href: "#/learn/13", label: "Module 13 · buses" },
     ],
@@ -216,6 +222,7 @@ export const LESSONS = {
     args: { scenario: "chime" },
     related: [
       { href: "#/architecture/chime", label: "Architecture · chime" },
+      { href: "#/architecture/life/standby", label: "Lifecycle · two STANDBYs" },
       { href: "#/learn/09", label: "Module 09 · PCM" },
       { href: "#/glossary/standby", label: "Glossary · Standby" },
     ],

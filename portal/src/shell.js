@@ -6,6 +6,7 @@ import { DUMP_SCENARIOS } from "./content/dumpLab.js";
 import { RCA_CASES } from "./content/rcaCases.js";
 import { GATES } from "./content/gates.js";
 import { XML_FILES } from "./content/xmlFiles.js";
+import { LIFE_SCENES } from "./content/lifecycle.js";
 
 export const NAV = [
   { id: "home", label: "Home" },
@@ -41,7 +42,7 @@ export function mountShell() {
     <div class="version-banner" role="status">
       <span>Default: <strong>Android 15</strong> · AIDL Core HAL · AAOS Config v4</span>
       <span class="banner-sep" aria-hidden="true">·</span>
-      <span class="phase-chip">Phase 8</span>
+      <span class="phase-chip">Phase 9</span>
       <a href="#/learn/23">Still on HIDL? Classification guide →</a>
     </div>
     <header class="app-nav">
@@ -110,6 +111,7 @@ export function openPalette() {
     ...RCA_CASES.map((c) => ({ t: `RCA ${c.id}: ${c.title}`, h: `workbench/rca/${c.id}`, k: "rca" })),
     ...GATES.map((g) => ({ t: `Gate ${g.id}: ${g.title}`, h: `progression/${g.id}`, k: "gate" })),
     ...XML_FILES.map((x) => ({ t: `XML: ${x.file}`, h: `architecture/xml/${x.id}`, k: "xml" })),
+    ...LIFE_SCENES.map((s) => ({ t: `Lifecycle: ${s.name}`, h: `architecture/life/${s.id}`, k: "life" })),
     ...TERMS.map((t) => ({ t: `Term: ${t.name}`, h: `glossary/${t.id}`, k: "glossary" })),
   ];
   const el = document.createElement("div");

@@ -25,6 +25,8 @@ import { mountLexiconStrip } from "./lexiconStrip.js";
 import { mountRingBuffer } from "./ringBuffer.js";
 import { mountPipes, THREADS } from "./pipes.js";
 import { mountTdm } from "./tdmSlots.js";
+import { mountLifecycleStudio } from "./lifecycle.js";
+import { LIFE_SCENES } from "../content/lifecycle.js";
 
 const LAST_GOOD = {
   app: "play() returned; buffers are being written; session exists",
@@ -118,9 +120,46 @@ export function mountLessonDiagram(host, diagramId, lesson = {}) {
       return mountGateJump(host);
     case "xml-studio":
       return mountXmlStudio(host);
+    case "lifecycle":
+      return mountLifecycleBind(host, args);
     default:
       return null;
   }
+}
+
+function mountLifecycleBind(host, args) {
+  let scene = args.scene === "create" ? "create" : "period";
+  host.innerHTML = `
+    <div class="learn-pipe">
+      <div class="arch-mode">
+        <span>Scene</span>
+        ${LIFE_SCENES.map(
+          (s) =>
+            `<button type="button" data-life="${s.id}" class="${s.id === scene ? "active" : ""}">${s.name}</button>`,
+        ).join("")}
+      </div>
+      <div data-lc></div>
+      <p class="muted">Same stepper as <a data-life-link href="#/architecture/life/${scene}">Lifecycle studio</a>. Four PlaybackThreads stay on <a href="#/fundamentals">Fundamentals</a>.</p>
+    </div>`;
+  const studio = mountLifecycleStudio(host.querySelector("[data-lc]"), { scene, compact: true });
+  host.querySelectorAll("[data-life]").forEach((b) => {
+    b.onclick = () => {
+      scene = b.dataset.life;
+      host.querySelectorAll("[data-life]").forEach((x) => x.classList.toggle("active", x === b));
+      const link = host.querySelector("[data-life-link]");
+      if (link) link.setAttribute("href", `#/architecture/life/${scene}`);
+      studio.setScene(scene);
+    };
+  });
+  return {
+    onCaption(fn) {
+      host._onCaption = fn;
+      studio.onCaption(fn);
+    },
+    update() {
+      studio.update();
+    },
+  };
 }
 
 function mountWithLex(host, mountFn, ids) {

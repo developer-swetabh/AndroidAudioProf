@@ -2231,6 +2231,7 @@ a.btn-ghost {
 }
 .arch-legend {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   font-size: 11px;
   letter-spacing: 0.04em;
@@ -2259,6 +2260,13 @@ a.btn-ghost {
 }
 .lg.data::before {
   background: var(--cyan);
+}
+.lg.control::before {
+  background: repeating-linear-gradient(90deg, var(--amber) 0 3px, transparent 3px 6px);
+  border-radius: 0;
+  width: 16px;
+  height: 3px;
+  vertical-align: middle;
 }
 .pipe-svg {
   width: 100%;
@@ -3561,5 +3569,89 @@ a.btn-ghost {
   .xml-layout,
   .xml-split {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Phase 9 · Lifecycle studio */
+.lc-page .lc-board {
+  padding: 16px;
+}
+.lc-stage:focus {
+  outline: 1px dashed rgba(0, 229, 255, 0.4);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+.lc-blurb {
+  margin: 0 0 10px;
+}
+.lc-widget,
+.lc-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lc-svg .viz-node.is-sel rect,
+.lc-svg .viz-node.is-sel .lc-clock {
+  filter: url(#lcglow);
+}
+.lc-hull-lab {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+.lc-chip {
+  fill: var(--cyan);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.lc-chip.amber {
+  fill: var(--amber);
+}
+.lc-clock {
+  fill: var(--bg-card);
+  stroke: var(--bg-border);
+  stroke-width: 1.4;
+}
+.viz-node.is-sel .lc-clock {
+  stroke: var(--cyan);
+  stroke-width: 2.4;
+}
+.lc-clock-n {
+  fill: var(--text-primary);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+.pipe-hull-box {
+  fill: none;
+  stroke: rgba(255, 179, 0, 0.4);
+  stroke-width: 1.2;
+  stroke-dasharray: 5 5;
+  pointer-events: none;
+}
+.pipe-hull-lab {
+  fill: var(--amber);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+.lc-underrun rect {
+  stroke: var(--crimson);
+  stroke-width: 2;
+  animation: lcFlash 0.9s ease-in-out infinite;
+}
+@keyframes lcFlash {
+  50% {
+    stroke-opacity: 0.25;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lc-underrun rect {
+    animation: none;
+  }
+  .lc-svg .pipe-pkt {
+    display: none;
   }
 }

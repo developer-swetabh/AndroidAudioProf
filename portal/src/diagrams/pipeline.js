@@ -114,6 +114,28 @@ function nodeBlock(id, title) {
     </g>`;
 }
 
+function hulls() {
+  // Hulls must not cover AudioService (system_server) or the vendor HAL.
+  const pol = POS.policy;
+  const fl = POS.flinger;
+  return `
+    <g class="pipe-hull" aria-hidden="true">
+      <rect class="pipe-hull-box" x="${pol.x - 8}" y="${pol.y - 8}" width="${pol.w + 16}" height="${pol.h + 16}" rx="18"/>
+      <rect class="pipe-hull-box" x="${fl.x - 8}" y="${fl.y - 8}" width="${fl.w + 16}" height="${fl.h + 16}" rx="18"/>
+      <text class="pipe-hull-lab" x="390" y="248">audioserver · Policy ‖ Flinger (peers)</text>
+    </g>`;
+}
+
+function edgeChips() {
+  return `
+    <foreignObject x="586" y="44" width="140" height="22">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="viz-chip">createTrack</div>
+    </foreignObject>
+    <foreignObject x="360" y="186" width="180" height="22">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="viz-chip">getOutputForAttr</div>
+    </foreignObject>`;
+}
+
 export function mountPipeline(host) {
   host.innerHTML = `
     <svg class="pipe-svg" viewBox="0 0 920 530" role="img" aria-label="Android audio call flow">
@@ -123,6 +145,7 @@ export function mountPipeline(host) {
           <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
         </filter>
       </defs>
+      ${hulls()}
       ${EDGES.map(
         (e) => `
         <g class="pipe-edge" data-edge="${e.id}" data-kind="${e.kind}">
@@ -142,6 +165,7 @@ export function mountPipeline(host) {
       ${nodeBlock("alsa", "ALSA / TinyALSA")}
       ${nodeBlock("sinkA", "Sink A")}
       ${nodeBlock("sinkB", "Sink B")}
+      ${edgeChips()}
     </svg>`;
 
   host.querySelectorAll("[data-node]").forEach((g) => {

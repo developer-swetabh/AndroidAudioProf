@@ -3,6 +3,7 @@ import { setMain } from "../shell.js";
 import { SCENARIOS, getLayer, getScenario } from "../content/architecture.js";
 import { mountPipeline } from "../diagrams/pipeline.js";
 import { pageConfigStudio } from "./configStudio.js";
+import { pageLifecycleStudio } from "./lifecycleStudio.js";
 
 export function pageArchitecture(arg = "") {
   const first = (arg || "").split("/")[0];
@@ -10,11 +11,18 @@ export function pageArchitecture(arg = "") {
     pageConfigStudio((arg || "").split("/").slice(1).join("/"));
     return;
   }
+  if (first === "life" || first === "lifecycle") {
+    pageLifecycleStudio((arg || "").split("/").slice(1).join("/"));
+    return;
+  }
   const start = getScenario(first);
   setMain(`
     <div class="arch-page">
       <aside class="arch-rail">
-        <p class="learn-related" style="margin:0 0 10px"><a class="btn-ghost" href="#/architecture/xml">Config XML →</a></p>
+        <p class="learn-related" style="margin:0 0 10px">
+          <a class="btn-ghost" href="#/architecture/xml">Config XML →</a>
+          <a class="btn-ghost" href="#/architecture/life">Lifecycle →</a>
+        </p>
         <h2>Scenarios</h2>
         <div class="arch-scens">
           ${SCENARIOS.map(
@@ -39,6 +47,7 @@ export function pageArchitecture(arg = "") {
           <span class="lg cold">Cold</span>
           <span class="lg err">Error</span>
           <span class="lg data">Playback PCM</span>
+          <span class="lg control">Control (amber dash)</span>
           <span class="lg data">Capture (teal dash)</span>
         </div>
         <div id="pipeline"></div>
@@ -129,6 +138,7 @@ function renderDrawer(el, sc, layerId) {
     <p><strong>COMMAND</strong></p>
     <pre class="term">${esc(L.cmd)}</pre>
     <button type="button" class="btn" data-copy-cmd>Copy</button>
+    ${zoomLink(layerId)}
     <p class="muted">Essay: <a href="#/learn/02">Module 02</a> · walkthrough <a href="#/learn/02a">02a</a> · threads <a href="#/learn/06">06</a></p>
   `;
   el.querySelectorAll("[data-lvl]").forEach((btn) => {
@@ -140,4 +150,17 @@ function renderDrawer(el, sc, layerId) {
     };
   });
   el.querySelector("[data-copy-cmd]").onclick = () => copy(L.cmd);
+}
+
+function zoomLink(layerId) {
+  if (layerId === "flinger") {
+    return `<p class="learn-related"><a class="btn" href="#/architecture/life/period">Zoom internals → period loop</a></p>`;
+  }
+  if (layerId === "policy") {
+    return `<p class="learn-related"><a class="btn" href="#/architecture/life/policy">Zoom internals → Policy room</a></p>`;
+  }
+  if (layerId === "app") {
+    return `<p class="learn-related"><a class="btn-ghost" href="#/architecture/life/create">Zoom createTrack vs play() →</a></p>`;
+  }
+  return "";
 }

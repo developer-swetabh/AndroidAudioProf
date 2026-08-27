@@ -19,7 +19,7 @@ export const TRACKS = [
       { id: "03", file: "03-audio-policy-vs-audioflinger.md", title: "AudioPolicy vs AudioFlinger", mins: 22, diagramId: "policy-flinger" },
       { id: "04", file: "04-audiotrack-audiorecord-media-apis.md", title: "AudioTrack, AudioRecord & Media APIs", mins: 20, diagramId: "pipeline-io" },
       { id: "05", file: "05-audio-attributes-usage-and-focus.md", title: "Attributes, Usage & Focus", mins: 25, diagramId: "meaning-focus-route" },
-      { id: "06", file: "06-audioflinger-internals.md", title: "AudioFlinger Internals", mins: 30, diagramId: "fund-embed" },
+      { id: "06", file: "06-audioflinger-internals.md", title: "AudioFlinger Internals", mins: 30, diagramId: "lifecycle" },
       { id: "07", file: "07-audiopolicy-routing-and-devices.md", title: "AudioPolicy Routing & Devices", mins: 26, diagramId: "ports-patch" },
       { id: "08", file: "08-audio-hal-legacy-hidl-aidl.md", title: "Audio HAL (HIDL → AIDL)", mins: 28, diagramId: "hal-studio" },
       { id: "09", file: "09-alsa-tinyalsa-and-pcm.md", title: "ALSA, TinyALSA & PCM", mins: 22, diagramId: "alsa-wheel" },

@@ -32,12 +32,12 @@ export function pageHome() {
       </div>
 
       <div class="phase-note">
-        <h2>What is live in Phase 8</h2>
+        <h2>What is live in Phase 9</h2>
         <ul>
-          <li><strong>Config studio</strong> — car XML, fade XML, policy ports, CAP, flags, mixer_paths. Who parses them, what they must not do.</li>
+          <li><strong>Lifecycle studio</strong> — createTrack vs play(), MixerThread period (Fast/Direct/Offload picker), two-bus vs shared, two STANDBYs, Policy room. Module 06 binds it. Fundamentals still has the four threads.</li>
+          <li><strong>Config studio</strong> — car XML, fade XML, policy ports, CAP, flags, mixer_paths.</li>
           <li><strong>Progression</strong> — gates A–H. Rank per track.</li>
           <li><strong>Workbench / Debug</strong> — dump lab, RCA 01–08, 10 playbooks.</li>
-          <li><strong>Learn</strong> — markdown is still the textbook. Module 13 binds the XML studio.</li>
         </ul>
       </div>
     </div>`);
