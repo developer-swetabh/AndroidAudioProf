@@ -1,13 +1,56 @@
 import { esc } from "./dom.js";
+import { MODULES } from "../content/catalog.js";
+import { RCA_CASES } from "../content/rcaCases.js";
+
+/** GitHub-style .md hrefs in the textbook become portal hash routes. Markdown files stay canonical. */
+export function mapCurriculumHref(href) {
+  if (href == null) return href;
+  let raw = String(href).trim().replace(/&amp;/g, "&");
+  try {
+    raw = decodeURI(raw);
+  } catch {
+    /* keep raw */
+  }
+  if (!raw) return href;
+  if (/^(https?:|mailto:)/i.test(raw)) return href;
+  if (raw.startsWith("#/")) return raw;
+  if (raw.startsWith("#")) return href;
+
+  const filePart = raw.split("?")[0].split("#")[0];
+  const normalized = filePart.replace(/\\/g, "/").replace(/^\.\//, "");
+  const name = normalized.split("/").filter(Boolean).pop() || "";
+
+  const mod = MODULES.find((m) => m.file === name);
+  if (mod) return `#/learn/${mod.id}`;
+
+  const rca = RCA_CASES.find((c) => c.file === name);
+  if (rca) return `#/workbench/rca/${rca.id}`;
+
+  if (/^ANSWER_KEY\.md$/i.test(name)) return "#/workbench/rca";
+  if (/workbook/i.test(normalized) && /^README\.md$/i.test(name)) return "#/workbench/rca";
+  if (/REFERENCE_PLATFORM\.md$/i.test(name)) return "#/learn/00";
+  if (/LEARNING_PATH\.md$/i.test(name)) return "#/learn";
+  if (/(^|\/)labs(\/|$)/i.test(normalized)) return "#/debug";
+  if (/^README\.md$/i.test(name)) return "#/home";
+  return href;
+}
+
+export function rewriteCurriculumLinks(html) {
+  return String(html || "").replace(/href=(["'])([^"']*)\1/gi, (all, q, url) => {
+    const mapped = mapCurriculumHref(url);
+    if (!mapped || mapped === url) return all;
+    return `href=${q}${mapped}${q}`;
+  });
+}
 
 export function parseMarkdown(text) {
   const parse = window.marked?.parse;
-  if (typeof parse === "function") return parse(text);
+  if (typeof parse === "function") return rewriteCurriculumLinks(parse(text));
   return `<pre>${esc(text)}</pre>`;
 }
 
 export function enhanceModuleHtml(html) {
-  let h = html;
+  let h = rewriteCurriculumLinks(html);
   h = h.replace(
     /<h2[^>]*>Short Answer<\/h2>([\s\S]*?)(?=<h2|$)/i,
     (_, body) =>
