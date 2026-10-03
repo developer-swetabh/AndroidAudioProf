@@ -1,39 +1,57 @@
 import "./styles.css";
 import { parseHash, onCleanPath, cleanTarget } from "./lib/dom.js";
 import { mountShell, syncNav, closeOverlays } from "./shell.js";
-import { pageHome } from "./pages/home.js";
-import { pageLearn } from "./pages/learn.js";
-import { pageGlossary } from "./pages/glossary.js";
 import { pageComing } from "./pages/coming.js";
-import { leaveFundamentals, pageFundamentals } from "./pages/fundamentals.js";
-import { pageWorkbench } from "./pages/workbench.js";
-import { pageArchitecture } from "./pages/architecture.js";
-import { pageDebug } from "./pages/debug.js";
-import { pageProgression } from "./pages/progression.js";
 
+// Each section's code is a separate chunk, fetched the first time it is opened.
 const LIVE = {
-  home: (arg) => pageHome(arg),
-  learn: (arg) => pageLearn(arg),
-  glossary: (arg) => pageGlossary(arg),
-  fundamentals: (arg) => pageFundamentals(arg),
-  workbench: (arg) => pageWorkbench(arg),
-  architecture: (arg) => pageArchitecture(arg),
-  debug: (arg) => pageDebug(arg),
-  progression: (arg) => pageProgression(arg),
+  home: () => import("./pages/home.js").then((m) => m.pageHome),
+  learn: () => import("./pages/learn.js").then((m) => m.pageLearn),
+  glossary: () => import("./pages/glossary.js").then((m) => m.pageGlossary),
+  fundamentals: () => import("./pages/fundamentals.js").then((m) => m.pageFundamentals),
+  workbench: () => import("./pages/workbench.js").then((m) => m.pageWorkbench),
+  architecture: () => import("./pages/architecture.js").then((m) => m.pageArchitecture),
+  debug: () => import("./pages/debug.js").then((m) => m.pageDebug),
+  progression: () => import("./pages/progression.js").then((m) => m.pageProgression),
 };
 
-function route() {
-  leaveFundamentals();
+let fundamentals = null; // loaded module, so we can stop its animation loop on leave
+let routeSeq = 0;
+
+async function route() {
+  const seq = ++routeSeq;
+  fundamentals?.leaveFundamentals();
+  const { page, arg } = parseHash();
+  const load = LIVE[page];
+  if (!load) {
+    mountShell();
+    syncNav();
+    closeOverlays();
+    pageComing(page);
+    return;
+  }
+  let render;
+  try {
+    render = await load();
+    if (page === "fundamentals") fundamentals = await import("./pages/fundamentals.js");
+  } catch {
+    // A stale chunk after a deploy: one full reload fetches the new build.
+    if (!sessionStorage.getItem("aaep.chunkReload")) {
+      sessionStorage.setItem("aaep.chunkReload", "1");
+      location.reload();
+      return;
+    }
+    mountShell();
+    pageComing(page);
+    return;
+  }
+  sessionStorage.removeItem("aaep.chunkReload");
+  if (seq !== routeSeq) return;
+  // Mount after the chunk arrives so prerendered HTML stays on screen meanwhile.
   mountShell();
   syncNav();
   closeOverlays();
-  const { page, arg } = parseHash();
-  const live = LIVE[page];
-  if (live) {
-    live(arg);
-    return;
-  }
-  pageComing(page);
+  render(arg);
 }
 
 // Only "#/..." (or an empty hash) is a route. Plain "#id" fragments (skip link,

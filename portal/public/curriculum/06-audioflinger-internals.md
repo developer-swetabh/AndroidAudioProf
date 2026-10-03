@@ -114,7 +114,7 @@ A user-visible “playing” UI can exist while the Flinger track is paused (foc
 
 **Mixer vs FastMixer**
 
-| | Normal mixer | FastMixer |
+| Aspect | Normal mixer | FastMixer |
 | --- | --- | --- |
 | Latency | Higher | Lower |
 | CPU / power | Lower wake rate | Higher |

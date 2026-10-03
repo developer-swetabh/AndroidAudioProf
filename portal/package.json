@@ -11,6 +11,8 @@
     "sync:check": "node scripts/sync-curriculum.mjs --check"
   },
   "devDependencies": {
+    "beasties": "0.5.4",
+    "linkedom": "0.18.13",
     "vite": "^6.0.0"
   },
   "dependencies": {

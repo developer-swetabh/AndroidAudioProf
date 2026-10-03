@@ -4,7 +4,7 @@ import { getDump, SERVICES } from "../content/debugDumps.js";
 import { RCA_CASES, RCA_SLOTS, SIX_Q, getRcaCase, rcaBlank, rcaFromAnswer } from "../content/rcaCases.js";
 import { colorDump } from "../lib/dumpMarkup.js";
 import { RCA_HINT } from "../content/debugLab.js";
-import { parseMarkdown } from "../lib/markdown.js";
+import { parseMarkdown } from "../lib/mdParse.js";
 
 export function rcaIndexHtml() {
   const st = load().rcaLab || {};

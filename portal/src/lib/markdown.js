@@ -1,5 +1,3 @@
-import { marked } from "marked";
-import DOMPurify from "dompurify";
 import { esc } from "./dom.js";
 import { MODULES } from "../content/catalog.js";
 import { RCA_CASES } from "../content/rcaCases.js";
@@ -45,19 +43,6 @@ export function rewriteCurriculumLinks(html) {
   });
 }
 
-/** Markdown → sanitized HTML. marked and DOMPurify are bundled (version-pinned in package.json). */
-export function sanitizeHtml(html) {
-  return DOMPurify.sanitize(html, { ADD_ATTR: ["target"] });
-}
-
-export function parseMarkdown(text) {
-  try {
-    return rewriteCurriculumLinks(sanitizeHtml(marked.parse(String(text ?? ""))));
-  } catch {
-    return `<pre>${esc(text)}</pre>`;
-  }
-}
-
 export function enhanceModuleHtml(html) {
   let h = rewriteCurriculumLinks(html);
   h = h.replace(
@@ -83,14 +68,7 @@ export function enhanceModuleHtml(html) {
   return h;
 }
 
-export function slugHeading(text) {
-  return String(text || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 48);
-}
+export { slugHeading } from "./slug.js";
 
 let mermaidMod = null;
 
@@ -134,25 +112,64 @@ async function renderMermaidInto(div, src) {
   }
 }
 
-export async function hydrateMermaid(root) {
-  if (!root) return;
-  const blocks = [...root.querySelectorAll("pre code.language-mermaid, pre code.lang-mermaid")];
-  if (!blocks.length) return;
-  try {
-    await loadMermaid();
-  } catch {
-    return;
-  }
-  for (const code of blocks) {
-    const src = code.textContent || "";
-    const wrap = code.closest(".code-wrap") || code.closest("pre") || code;
+let mermaidObserver = null;
+let renderQueue = Promise.resolve();
+
+/** Render one pending block: load mermaid on first use, then draw. Serialized (mermaid is not re-entrant). */
+function renderPending(wrap) {
+  if (wrap.dataset.mmdState) return renderQueue;
+  wrap.dataset.mmdState = "queued";
+  renderQueue = renderQueue.then(async () => {
+    if (!wrap.isConnected) return;
+    const code = wrap.querySelector("code");
+    const src = code?.textContent || "";
+    try {
+      await loadMermaid();
+    } catch {
+      delete wrap.dataset.mmdState; // source stays visible as a code block
+      return;
+    }
+    if (!wrap.isConnected) return;
     const div = document.createElement("div");
     div.className = "mermaid-live";
     div.dataset.src = src;
     wrap.replaceWith(div);
     await renderMermaidInto(div, src);
-  }
+  });
+  return renderQueue;
 }
+
+/**
+ * Diagrams are drawn only when they scroll near the viewport, so pages without a
+ * visible diagram never download or run mermaid. The fenced source shows until then.
+ */
+export async function hydrateMermaid(root) {
+  if (!root) return;
+  const blocks = [...root.querySelectorAll("pre code.language-mermaid, pre code.lang-mermaid")];
+  if (!blocks.length) return;
+  const wraps = blocks.map((code) => {
+    const wrap = code.closest(".code-wrap") || code.closest("pre") || code;
+    wrap.classList.add("mermaid-pending");
+    return wrap;
+  });
+  if (!("IntersectionObserver" in window)) {
+    for (const w of wraps) await renderPending(w);
+    return;
+  }
+  mermaidObserver?.disconnect();
+  mermaidObserver = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        mermaidObserver.unobserve(e.target);
+        renderPending(e.target);
+      }
+    },
+    { rootMargin: "400px 0px" },
+  );
+  wraps.forEach((w) => mermaidObserver.observe(w));
+}
+
 
 /** Re-render live diagrams after a theme toggle so they match light/dark. */
 export async function rethemeMermaid() {

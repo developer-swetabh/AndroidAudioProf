@@ -627,15 +627,27 @@ a:hover {
   padding: 14px;
   overflow: auto;
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 13px;
 }
 .md-body code {
   font-family: var(--font-mono);
   color: var(--text-code);
-  font-size: 0.92em;
+  /* Never below 13px (legible on phones), even inside 13px tables. */
+  font-size: max(13px, 0.92em);
 }
 .md-body pre code {
   color: inherit;
+  font-size: 13px;
+}
+/* Links inside running text must not rely on colour alone. */
+.md-body p a,
+.md-body li a,
+.md-body td a,
+.module-meta a,
+.flow-stage p a,
+.lede a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .md-body table {
   width: 100%;
@@ -3851,7 +3863,7 @@ a.btn-ghost {
     font-size: 1rem;
   }
   .md-body pre {
-    font-size: 12px;
+    font-size: 13px;
   }
 }
 /* Banner: keep it to one line on small screens */
