@@ -40,9 +40,13 @@ AudioPolicyManager.setDeviceConnectionState
         ↓
 engine recomputes preferred device per strategy
         ↓
-AudioFlinger told to move outputs
-        ↓
-maybe close/reopen HAL streams
+same module (speaker ↔ wired headset):
+  setOutputDevices → new audio patch on the existing output
+  (AF createAudioPatch → PatchPanel → PlaybackThread::createAudioPatch_l
+   → IModule.setAudioPatch) — no stream reopen
+device on another module / mixPort (A2DP, USB):
+  checkOutputsForDevice opens a new output
+  (AF openOutput → IModule.openOutputStream) and tracks are invalidated/moved
 ```
 
 ```text
@@ -157,6 +161,18 @@ Examples:
 
 `dumpsys media.audio_policy` listing patches is how you see **current** routing, not just possible topology.
 
+A routing change on the same module is a **new patch**, not a new stream:
+
+```text
+AudioPolicyManager::setOutputDevices
+  → installPatch → AudioPolicyService client → AudioFlinger::createAudioPatch
+  → PatchPanel::createAudioPatch
+  → PlaybackThread::createAudioPatch_l      (mix → device: the thread's sink changes)
+  → DeviceHalAidl::createAudioPatch → IModule.setAudioPatch   (AIDL)
+```
+
+Device → device patches (FM tuner → speaker, call audio, bus-to-bus) that the HAL cannot route by itself become **software patches**: PatchPanel opens a RecordThread and a PlaybackThread and pipes PCM between them. Only devices that need a different mixPort/module (A2DP, USB, `r_submix`) cause Policy to open a new output (`checkOutputsForDevice`).
+
 ### 6. Preferred devices and app overrides
 
 Apps and system UI can request a preferred device (Bluetooth hearing aid, USB, communication device for VoIP). These interact with strategy rules. When debugging “it ignored the headset,” ask whether:
@@ -167,20 +183,104 @@ Apps and system UI can request a preferred device (Bluetooth hearing aid, USB, c
 
 ### 7. Configuration transport on Android 15 (AIDL)
 
-APM does **not** own a vendor XML as its primary contract:
+APM does **not** own a vendor XML as its primary contract, and it has **no direct HAL binder**. `AudioPolicyService::createAudioPolicyManager` asks AudioFlinger for `getAudioPolicyConfig()`; AudioFlinger's libaudiohal (`DevicesFactoryHalAidl` / `DeviceHalAidl`) queries the HAL and converts the result; APM loads it with `AudioPolicyConfig::loadFromApmAidlConfigWithFallback()` (falling back to `loadFromApmXmlConfigWithFallback()` — the XML file — on HIDL devices). The HAL calls underneath are:
 
 ```text
-IModule.getAudioPorts / getAudioRoutes
+IModule.getAudioPorts / getAudioRoutes          ← via AudioFlinger/libaudiohal
 IConfig.getEngineConfig / getSurroundSoundConfig
-IModule.connectExternalDevice   ← jack / USB / BT
-IModule.setAudioPatch           ← live route
+IModule.connectExternalDevice   ← jack / USB / BT (AF forwards APM's setDeviceConnectionState)
+IModule.setAudioPatch           ← live route (APM → AF createAudioPatch → PatchPanel → HAL)
 ```
 
 A default AIDL HAL may still *implement* those calls by converting `audio_policy_configuration.xml`. Bring-up teams often edit that file. Your debug question is: **does `dumpsys media.audio_policy` show the port the converter claimed?** If not, the converter or `IModule` implementation is wrong.
 
 HIDL XML/XSD and the v6→v7 space-separator script are history (Module 23). Do not run them as the 15 procedure.
 
-CAP (`useCoreAudioVolume` / `useCoreAudioRouting`) can sit on top. On **15**, CAP data is typically still file-based. Full CAP-over-AIDL is **16+**.
+```mermaid
+flowchart LR
+  APS[AudioPolicyService::createAudioPolicyManager] -->|getAudioPolicyConfig| AF[AudioFlinger]
+  AF --> LH[libaudiohal DevicesFactoryHalAidl]
+  LH -->|IConfig.getEngineConfig / getSurroundSoundConfig| CFG[(AIDL IConfig)]
+  LH -->|per module: getAudioPorts / getAudioRoutes| MOD[(IModule default / bluetooth / r_submix / vendor)]
+  AF -->|media::AudioPolicyConfig| APS
+  APS --> L1{loadFromApmAidlConfigWithFallback}
+  L1 -->|AIDL HAL| APM[AudioPolicyManager]
+  L1 -->|HIDL / unavailable| XML[loadFromApmXmlConfigWithFallback → audio_policy_configuration.xml] --> APM
+```
+
+### 7a. Reading `audio_policy_configuration.xml` (what the converter and HIDL devices consume)
+
+Even on Android 15 AIDL devices you will meet this file: the AOSP default HAL and many vendor HALs convert it into `IModule` ports and routes. Its anatomy (abridged, illustrative; check your device's file):
+
+```xml
+<audioPolicyConfiguration version="7.0" xmlns:xi="http://www.w3.org/2001/XInclude">
+  <globalConfiguration speaker_drc_enabled="true"/>
+  <modules>
+    <module name="primary" halVersion="3.0">          <!-- AIDL: IModule instance "default" -->
+      <attachedDevices>                                <!-- always present: opened at boot -->
+        <item>Speaker</item>
+        <item>Built-In Mic</item>
+      </attachedDevices>
+      <defaultOutputDevice>Speaker</defaultOutputDevice>
+      <mixPorts>                                       <!-- each opened mixPort = one output / thread -->
+        <mixPort name="primary output" role="source" flags="AUDIO_OUTPUT_FLAG_PRIMARY AUDIO_OUTPUT_FLAG_FAST">
+          <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                   samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+        </mixPort>
+        <mixPort name="deep_buffer" role="source" flags="AUDIO_OUTPUT_FLAG_DEEP_BUFFER">
+          <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                   samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+        </mixPort>
+        <mixPort name="compress_offload" role="source" maxOpenCount="1"
+                 flags="AUDIO_OUTPUT_FLAG_DIRECT AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD AUDIO_OUTPUT_FLAG_NON_BLOCKING">
+          <profile name="" format="AUDIO_FORMAT_MP3" samplingRates="44100 48000"
+                   channelMasks="AUDIO_CHANNEL_OUT_STEREO AUDIO_CHANNEL_OUT_MONO"/>
+        </mixPort>
+        <mixPort name="primary input" role="sink">
+          <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                   samplingRates="8000 16000 48000" channelMasks="AUDIO_CHANNEL_IN_MONO"/>
+        </mixPort>
+      </mixPorts>
+      <devicePorts>
+        <devicePort tagName="Speaker" type="AUDIO_DEVICE_OUT_SPEAKER" role="sink">
+          <gains>
+            <gain name="gain_1" mode="AUDIO_GAIN_MODE_JOINT"
+                  minValueMB="-8400" maxValueMB="4000" defaultValueMB="0" stepValueMB="100"/>
+          </gains>
+        </devicePort>
+        <devicePort tagName="Wired Headset" type="AUDIO_DEVICE_OUT_WIRED_HEADSET" role="sink"/>
+        <devicePort tagName="Built-In Mic" type="AUDIO_DEVICE_IN_BUILTIN_MIC" role="source"/>
+      </devicePorts>
+      <routes>                                         <!-- which mixPorts can reach which device -->
+        <route type="mix" sink="Speaker" sources="primary output,deep_buffer,compress_offload"/>
+        <route type="mix" sink="Wired Headset" sources="primary output,deep_buffer,compress_offload"/>
+        <route type="mix" sink="primary input" sources="Built-In Mic"/>
+      </routes>
+    </module>
+    <xi:include href="r_submix_audio_policy_configuration.xml"/>
+    <xi:include href="usb_audio_policy_configuration.xml"/>
+    <xi:include href="bluetooth_audio_policy_configuration_7_0.xml"/>
+  </modules>
+  <xi:include href="audio_policy_volumes.xml"/>
+  <xi:include href="default_volume_tables.xml"/>
+</audioPolicyConfiguration>
+```
+
+How to read it:
+
+| Element | What it means at runtime |
+| --- | --- |
+| `module` | One HAL module (AIDL `IModule` instance; `primary` maps to `default`). `bluetooth`, `usb`, `r_submix` are separate modules. |
+| `attachedDevices` | Devices that are always present. APM opens outputs that can reach them **at boot** — this is when `openOutputStream` runs for mixer outputs. |
+| `mixPort` | A stream type the HAL can open (`role="source"` = playback). Flags pick the thread type: `FAST`/`PRIMARY` → MixerThread with FastMixer, `DEEP_BUFFER` → MixerThread, `DIRECT`/`COMPRESS_OFFLOAD` → Direct/Offload thread, `MMAP_NOIRQ` → MMAP. `maxOpenCount`/`maxActiveCount` limit concurrent opens/actives. |
+| `profile` | Supported format/rate/channel combinations. Since version 7.0, lists are **space-separated**. |
+| `devicePort` | A physical or logical endpoint. On AAOS, `AUDIO_DEVICE_OUT_BUS` ports carry an `address` (e.g. `bus0_media_out`) and a `<gain>` stage that CarAudioService uses for fixed-volume gain in millibels. |
+| `route` | Which sources can feed a sink. `type="mix"` = the HAL can mix several sources; `type="mux"` = only one source at a time. |
+| `xi:include` | Pulls in per-module files and the volume curves (`audio_policy_volumes.xml`, `default_volume_tables.xml`). |
+
+If a device works on HIDL but not after an AIDL conversion, compare the ports and routes in `dumpsys media.audio_policy` with this file — the converter may have dropped a profile or route.
+
+CAP (CarService overlay flags `audioUseCoreVolume` / `audioUseCoreRouting`) can sit on top. On **15**, CAP data is typically still file-based. Full CAP-over-AIDL is **16+**.
 
 ## Source-Code Path
 

@@ -28,7 +28,7 @@ If the client object was never created, the rest of the stack cannot be guilty o
 
 - **Beginner:** The object an app uses to play PCM.
 - **Engineer:** A client that obtains an `IAudioTrack`, writes to a shared buffer or callback, and starts/stops a Flinger track.
-- **Expert:** Construction is a policy query (`getOutputForAttr`) plus thread selection. There are transfer modes (callback, write, static), performance modes (low latency / power saving), and offload flags that pick *different thread types*.
+- **Expert:** Construction is a policy query (`getOutputForAttr`) plus thread selection. There are buffer modes (`MODE_STREAM`, `MODE_STATIC`), write flags (blocking / non-blocking), native callback delivery, performance modes (low latency / power saving), and offload flags that pick *different thread types*.
 
 **AudioRecord**
 
@@ -77,13 +77,15 @@ AudioFlinger::createTrack
         ↓
 AudioPolicy getOutputForAttr / similar
         ↓
-choose or open PlaybackThread
+attach to the PlaybackThread of the chosen output
+(mixer outputs are opened at boot; direct/offload may be opened now)
         ↓
 return IAudioTrack + shared buffer
         ↓
 AudioTrack.play()
         ↓
-Track::start → thread out of standby if needed
+Track::start → if the thread is in standby, the next write
+sends Command.start/burst on the already open HAL stream
         ↓
 app write() or callback fire
 ```
@@ -142,14 +144,17 @@ sessionId
 
 When you dump Flinger, join app logs to tracks using **session**. UID is the other join key.
 
-### 3. Transfer modes
+### 3. Buffer modes, write flags, callbacks and offload
 
-| Mode | Behavior | Typical use |
-| --- | --- | --- |
-| Streaming `write()` | App pushes PCM | Media, simple generators |
-| Callback / `WRITE_NON_BLOCKING` | Flinger or client thread pulls | Low-latency, games |
-| Static | Entire buffer preloaded | Short sounds |
-| Offload | Encoded frames written | Long compressed media |
+These are four different knobs, not one list of “transfer modes”:
+
+| Knob | Options | Behavior | Typical use |
+| --- | --- | --- | --- |
+| Java buffer mode | `MODE_STREAM` | App pushes PCM with `write()` while playing | Media, simple generators |
+| Java buffer mode | `MODE_STATIC` | Entire buffer preloaded once, then replayed | Short sounds |
+| Write flag | `WRITE_BLOCKING` / `WRITE_NON_BLOCKING` | Whether `write()` waits for room in the shared buffer | Non-blocking for event-loop apps |
+| Callback (pull) | native `AudioTrack` `TRANSFER_CALLBACK`, AAudio data callback | A **client-side** thread is woken to fill the buffer. AudioFlinger never calls into app code | Low-latency, games |
+| Offload | `AudioTrack.Builder.setOffloadedPlayback(true)` + compressed `AudioFormat` | Encoded frames go to an OffloadThread; the DSP decodes | Long compressed media |
 
 If the app’s write rate is slower than real time, Flinger underruns. That is an app-layer data-path bug that *looks* like a HAL glitch.
 
@@ -284,7 +289,7 @@ permission denial on AudioRecord
 | --- | --- |
 | Debugging MediaPlayer as if it had its own HAL | It feeds a track |
 | Using `STREAM_MUSIC` and wondering why AAOS routing is wrong | Usage/context mapping needs proper attributes |
-| Assuming `play()` starts hardware immediately | Fast path may already be open; deep buffer may open now |
+| Assuming `play()` starts hardware immediately | The HAL stream is already open, but it may be in standby; leaving standby (`Command.start`, vendor PCM/graph restart, amp ramp) costs time |
 | Ignoring `write()` return value | That is your data-path heartbeat |
 | Comparing AAudio “exclusive MMAP” behavior to mixer tracks | Different thread, different XRUN physics |
 | Thinking session ID is the UID | Session is per-track group; UID is the app identity |

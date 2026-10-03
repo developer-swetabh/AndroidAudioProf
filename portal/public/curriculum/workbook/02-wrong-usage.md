@@ -1,5 +1,7 @@
 # Case 02 — “Nav is silent” (or buried)
 
+> **Illustrative:** the dumps and logs in this case are teaching reconstructions, not captures from a real device. Field names follow Android 15 AIDL + AAOS; exact `dumpsys` text varies by build.
+
 The nav app UI is speaking. The user turns the **nav** volume group. Level does not change. Media is playing and is loud.
 
 ## Classification

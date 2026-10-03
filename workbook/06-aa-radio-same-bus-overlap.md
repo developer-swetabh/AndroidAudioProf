@@ -1,5 +1,7 @@
 # Case 06 — AA → Radio overlap on a shared media bus
 
+> **Illustrative:** the dumps and logs in this case are teaching reconstructions, not captures from a real device. Field names follow Android 15 AIDL + AAOS; exact `dumpsys` text varies by build.
+
 Real hardware bring-up. Android Auto (Spotify) and radio both use **`BUS00_MEDIA`**. Tester hears ~300 ms of both on source switch to radio.
 
 This case exists so you do **not** recommend a bus mute (that would kill radio too).

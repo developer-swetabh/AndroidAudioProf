@@ -52,28 +52,45 @@ Vendor trees are extra and optional (Module 16).
 Search these symbols in order (names close; confirm on your branch):
 
 ```text
+Construction (once, before play):
+android.media.AudioTrack (Builder / constructor)
+    → native_setup  (android_media_AudioTrack.cpp)
+    → AudioTrack::set → AudioTrack::createTrack_l  (libaudioclient)
+    → IAudioFlinger::createTrack(CreateTrackRequest)  (Binder)
+    → AudioFlinger::createTrack
+        → AudioSystem::getOutputForAttr  (AudioFlinger asks Policy)
+        → PlaybackThread::createTrack_l  → Track + audio_track_cblk_t shared memory
+    → returns IAudioTrack (control only) + cblk
+
+Start and steady state:
 android.media.AudioTrack.play
     → native_start
-    → android_media_AudioTrack.cpp
     → AudioTrack::start  (libaudioclient)
-    → IAudioTrack::start  (Binder)
-    → Track::start        (AudioFlinger)
-    → PlaybackThread::addTrack / request start
-    → if standby: openHw / startHw
-    → libaudiohal StreamOut path
-    → IModule.openOutputStream  (AIDL)
-    → StreamDescriptor.Command.burst  (audio.fmq)
+    → IAudioTrack::start  (Binder) → TrackHandle::start
+    → Track::start        (AudioFlinger, Tracks.cpp)
+    → PlaybackThread::addTrack_l  (wakes the thread; AudioSystem::startOutput)
+    → PlaybackThread::threadLoop
+        → prepareTracks_l → threadLoop_mix → threadLoop_write
+    → StreamOutHalAidl::write → StreamHalAidl::transfer  (libaudiohal)
+        → if state == STANDBY: Command.start   (leave standby; stream already open)
+        → StreamDescriptor.Command.burst  (audio.fmq)
     → vendor consumes burst (often pcm_write)
     → kernel PCM
+
+Not on this path: IModule.openOutputStream. It runs when Policy opens the output
+(AudioFlinger::openOutput_l → AudioHwDevice::openOutputStream), at boot / device
+attach, or for direct/offload outputs inside getOutputForAttr.
 ```
 
-Homework: actually click this on cs.android.com once. Note the **file names your branch uses** (`Tracks.cpp` vs `PlaybackTracks.cpp`).
+Homework: actually click this on cs.android.com once. Note that track code lives in `Tracks.cpp` (headers `PlaybackTracks.h` / `RecordTracks.h`); there is no `PlaybackTracks.cpp`. FastMixer lives in `services/audioflinger/fastpath/`.
 
 ## Walk 2 — attributes to device
 
 ```text
 AudioTrack constructor / set
-    → AudioSystem.getOutputForAttr  (or successor)
+    → IAudioFlinger::createTrack(CreateTrackRequest)   (the client does not call Policy)
+    → AudioFlinger::createTrack
+    → AudioSystem::getOutputForAttr   (called by AudioFlinger)
     → IAudioPolicyService
     → AudioPolicyService
     → AudioPolicyManager::getOutputForAttr
@@ -88,22 +105,29 @@ On AAOS, before this succeeds in the car sense, `CarAudioService` already regist
 ```text
 CarAudioManager.setGroupVolume  or  AudioManager.adjustVolume
     → CarAudioService / AudioService
-    → AudioPolicy set volume index
-    → Flinger set stream/track volume
-      and/or HAL setGain / setVolume
+    → phone:  AudioPolicy set volume index → volume curve
+              → Flinger set stream/track volume
+    → AAOS fixed volume: CarVolumeGroup index → gain in millibels
+              → AudioManager.setAudioPortGain
+              → AudioPolicy/AudioFlinger setAudioPortConfig
+              → IModule.setAudioPortConfig(AudioGainConfig)   (AIDL)
 ```
 
-On fixed-volume AAOS, expect the HAL branch to matter more.
+On fixed-volume AAOS, expect the HAL branch to matter more. The HAL receives a gain in millibels on a device port, never an index.
 
 ## Walk 4 — headset insert
 
 ```text
 Kernel jack / USB / BT event
     → AudioService / BtHelper
-    → AudioPolicy.setDeviceConnectionState
-    → engine update
-    → AudioFlinger handleDeviceUpdate / reconnect
-    → close/open HAL streams
+    → AudioPolicyManager::setDeviceConnectionState
+        → AudioFlinger forwards to HAL: IModule.connectExternalDevice (external devices)
+    → engine update → checkOutputsForDevice
+    → same module (wired headset): setOutputDevices → installPatch
+        → AudioFlinger::createAudioPatch → PatchPanel
+        → PlaybackThread::createAudioPatch_l → IModule.setAudioPatch
+    → other module (A2DP / USB): new output opened
+        → AudioFlinger::openOutput → IModule.openOutputStream; tracks invalidated and moved
 ```
 
 ## Important Binder interfaces

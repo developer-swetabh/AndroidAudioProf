@@ -78,7 +78,7 @@ export function mountLessonDiagram(host, diagramId, lesson = {}) {
     case "pipeline-chime":
       return mountScenarioPipe(host, {
         scenarioId: "chime",
-        myth: "Route is right. Output is STANDBY (HAL closed). No Command.burst yet — so no PCM packets on this drawing.",
+        myth: "Route is right. Output is STANDBY (stream open, idle). No Command.burst yet — so no PCM packets on this drawing.",
       });
     case "meaning-focus-route":
       return mountMeaningFocus(host);
@@ -139,7 +139,7 @@ function mountLifecycleBind(host, args) {
         ).join("")}
       </div>
       <div data-lc></div>
-      <p class="muted">Same stepper as <a data-life-link href="#/architecture/life/${scene}">Lifecycle studio</a>. Four PlaybackThreads stay on <a href="#/fundamentals">Fundamentals</a>.</p>
+      <p class="muted">Same stepper as <a data-life-link href="#/architecture/life/${scene}">Lifecycle studio</a>. Thread types (MixerThread, Direct, Offload + the FastMixer helper) stay on <a href="#/fundamentals">Fundamentals</a>.</p>
     </div>`;
   const studio = mountLifecycleStudio(host.querySelector("[data-lc]"), { scene, compact: true });
   host.querySelectorAll("[data-life]").forEach((b) => {
@@ -486,14 +486,14 @@ function mountComingBind(host, id) {
   const spec = COMING[id] || COMING.debug;
   host.innerHTML = `
     <div class="coming-bind">
-      <p class="del-myth"><span class="phase-chip">Phase ${spec.phase}</span> ${spec.lede}</p>
+      <p class="del-myth">${spec.lede}</p>
       <div class="coming-grid">
         <section class="card coming-card">
-          <h2>What will ship</h2>
+          <h2>What it covers</h2>
           <ul>${spec.boards.map((b) => `<li>${b}</li>`).join("")}</ul>
         </section>
         <section class="card coming-card">
-          <h2>Use this until then</h2>
+          <h2>Related reading</h2>
           <ul class="coming-links">${spec.now.map((n) => `<li><a href="${n.href}">${n.label}</a></li>`).join("")}</ul>
         </section>
       </div>

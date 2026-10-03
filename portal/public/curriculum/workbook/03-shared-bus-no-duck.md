@@ -1,5 +1,7 @@
 # Case 03 — Nav and media both full blast, clipped
 
+> **Illustrative:** the dumps and logs in this case are teaching reconstructions, not captures from a real device. Field names follow Android 15 AIDL + AAOS; exact `dumpsys` text varies by build.
+
 OEM requirement: nav on driver tweeters, media 12 dB down on woofers.
 
 What shipped: both scream from every speaker; DSP team is blamed.

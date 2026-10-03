@@ -4,7 +4,7 @@
 
 AudioFlinger is the **real-time execution server**. It owns tracks, playback/record threads, mixing, a subset of effects, standby, and the HAL write/read loop. If Policy is correct and you still have silence, glitches, or “starts then dies,” you are in Flinger’s state machine or the HAL it calls.
 
-Learn four thread families: **Mixer**, **Fast**, **Direct**, **Offload**. Almost every playback mystery is “which thread am I on, and is that thread actually running?”
+Learn the main thread families: **Mixer** (with its **FastMixer** helper for fast tracks), **Direct**, **Offload** — plus the MMAP path that skips the mix. Almost every playback mystery is “which thread am I on, and is that thread actually running?”
 
 ## Mental Model
 
@@ -13,7 +13,7 @@ A train station:
 - Each **PlaybackThread** is a platform with its own timetable (period).
 - Each **Track** is a train car filling with passengers (frames).
 - The **mixer** couples cars onto one departing train (HAL write).
-- **Standby** means the platform closed the tunnel to save electricity.
+- **Standby** means the platform turned the lights off to save electricity — the tunnel (HAL stream) is still there.
 - **Underrun** means a car was empty when the timetable said “depart.”
 
 ### Three-level definition: AudioFlinger
@@ -36,14 +36,20 @@ IAudioFlinger Binder
         v
 AudioFlinger
         |
-        +-- PlaybackThread(s)  ← one per opened output
-        |     MixerThread
-        |       + optional FastMixer (separate thread)
+        +-- PlaybackThread(s)  ← one per opened output (created around the
+        |     MixerThread          HAL stream from IModule.openOutputStream)
+        |       + optional FastMixer (a FastThread owned by the MixerThread,
+        |         not a PlaybackThread)
+        |     SpatializerThread / BitPerfectThread (MixerThread variants)
         |     DirectOutputThread
         |     OffloadThread
         |     DuplicatingThread
+        |     MmapPlaybackThread  (AAudio MMAP; exclusive mode bypasses the mix)
         |
         +-- RecordThread(s)    ← one per opened input
+        |     (+ optional FastCapture), DirectRecordThread, MmapCaptureThread
+        |
+        +-- AsyncCallbackThread (helper for non-blocking/offload HAL callbacks)
         |
         +-- Effects (pre/post, on thread or HAL)
         |
@@ -58,7 +64,8 @@ AIDL IModule stream
 ```text
 threadLoop:
     if no active tracks:
-        maybe enter standby → HAL standby/close
+        after the standby delay: threadLoop_standby() → Command.standby
+        (the HAL stream stays open; the vendor HAL may release its PCM)
         wait for work
     else:
         pull frames from each ACTIVE track
@@ -66,7 +73,8 @@ threadLoop:
         mix
         run software effects
         burst into StreamDescriptor audio.fmq
-        sleep until next period
+        (the blocking write/burst is what paces the loop; the thread
+         only sleeps when it has nothing to write)
 ```
 
 If this loop blocks in `write()`, the period is late. Listeners hear a glitch or the HAL itself underruns.
@@ -92,11 +100,17 @@ A user-visible “playing” UI can exist while the Flinger track is paused (foc
 | Thread | Mixes? | Typical period | Use |
 | --- | --- | --- | --- |
 | **MixerThread** (normal / deep buffer) | Yes | Larger (often ~10–20 ms class; product-specific) | Media, power saving |
-| **FastMixer** | Yes, small set of fast tracks | Small (often ~2–5 ms class) | Touch sounds, low-latency tracks |
+| FastMixer *(helper, not a PlaybackThread)* | Yes, small set of fast tracks | Small (often ~2–5 ms class, the HAL period) | Touch sounds, low-latency tracks. A `FastThread` (`services/audioflinger/fastpath/FastMixer.cpp`) owned by a MixerThread |
+| **SpatializerThread** | Yes, then spatializer effect | Mixer-like | Spatial audio / binaural output (Android 13+) |
+| **BitPerfectThread** | Single bit-perfect track (or mix when not bit-perfect) | Mixer-like | USB bit-perfect playback (Android 14+) |
 | **DirectOutputThread** | No (single track) | Matches stream | HDMI passthrough, exclusive PCM |
 | **OffloadThread** | No | Burstier | Compressed offload to DSP |
 | **DuplicatingThread** | Yes, fans out | Follows outputs | Play the same mix on two devices |
-| **RecordThread** | N/A | Input period | Capture |
+| **MmapPlaybackThread** / **MmapCaptureThread** | No (exclusive) | HAL burst | AAudio MMAP. In exclusive mode the app writes the shared buffer directly; there is no AudioFlinger mix |
+| **RecordThread** (+ optional FastCapture) | N/A | Input period | Capture |
+| **DirectRecordThread** | N/A | Matches stream | Direct (e.g. compressed) capture |
+
+`AudioFlinger::openOutput_l` logs which kind it created (“created mmap playback / spatializer / offload / direct / mixer output”). `AsyncCallbackThread` is a helper for non-blocking/offload HAL callbacks, not an output.
 
 **Mixer vs FastMixer**
 
@@ -108,7 +122,7 @@ A user-visible “playing” UI can exist while the Flinger track is paused (foc
 | Blocking | Bad but somewhat tolerated | Catastrophic |
 | Logging | `ALOGx` OK-ish | Prefer NBLOG / media.log |
 
-If an app requested low latency and landed on a deep buffer thread, Policy refused the fast path. That is a **decision**, not a Flinger bug.
+If an app requested low latency and landed on a deep buffer thread, either Policy picked a non-fast output or AudioFlinger denied the FastTrack (sample-rate mismatch, effects, no free fast slot — look for `AUDIO_OUTPUT_FLAG_FAST denied`). That is a **decision**, not a mixer bug.
 
 ### 3. Buffer math you will use daily
 
@@ -141,11 +155,25 @@ Standby is the most misunderstood Flinger feature.
 
 When no track needs the output:
 
-1. Thread stops calling `write`.
-2. HAL `standby()` is invoked.
-3. The vendor often closes the PCM and tears down the DSP graph.
+1. After a standby delay with no active tracks, the thread stops writing.
+2. `threadLoop_standby()` puts the stream in standby: on AIDL that is `Command.standby` (StreamDescriptor state `STANDBY`). The HAL stream is **not closed** — it was opened when Policy opened the output (boot or device attach) and stays open.
+3. The vendor HAL often closes the ALSA PCM and tears down the DSP graph on standby. That is a vendor choice, not an AudioFlinger rule.
 
-The next `start()` pays **bring-up cost**: clocks, calibration, amp pop suppression, graph build. “First navigation prompt is clipped” is often standby bring-up, not a broken DAC.
+The next write after `start()` sends `Command.start`/`burst` on the same stream and pays the vendor's **bring-up cost**: clocks, calibration, amp pop suppression, graph build. “First navigation prompt is clipped” is often standby bring-up, not a broken DAC.
+
+```mermaid
+stateDiagram-v2
+    state "Output open, thread idle" as Open
+    state "ACTIVE (bursting)" as Active
+    state "STANDBY (stream still open)" as Standby
+    [*] --> Open : APM opens output, IModule.openOutputStream runs once
+    Open --> Active : track starts, Command.start then burst
+    Active --> Standby : idle past standby delay, Command.standby
+    Standby --> Active : next write, Command.start then burst
+    Active --> Closed : APM closes output
+    Standby --> Closed : APM closes output
+    Closed --> [*] : IStreamCommon.close
+```
 
 Some products keep a **fast path always warm** (touch sounds). Media deep buffer goes cold. Two threads, two standby policies.
 
@@ -207,8 +235,8 @@ Effects in Android are organized into **`EffectChain`** instances managed by Aud
 4. **Post-Processing / Device Effects**: Dynamics Processing (DP), Speaker Protection, and Spatializer attached to the output device or Session 0.
 
 #### Framework vs Offloaded HAL Effects:
-- **Software Effects**: Implemented in CPU libraries (`libbundle.so`, `libeffectproxy.so`). Mixed and computed inside `audioserver`.
-- **Offloaded / Hardware Effects**: Implemented on DSP/HAL via AIDL `IFactory` / `IEffect`. AudioFlinger passes parameters over AIDL while audio processing occurs in the DSP.
+- **Software Effects**: CPU libraries such as `libbundlewrapper.so` / `libreverbwrapper.so` / `libdynproc.so` in `/vendor/lib*/soundfx`. Since Treble they are loaded by the **effects HAL service** (AIDL `android.hardware.audio.effect` `IFactory`, service `vendor.audio-effect-hal-aidl`), **not** by audioserver. AudioFlinger's `EffectChain` drives each one through `IEffect` and FMQ, so the processing runs in the HAL process on CPU.
+- **Offloaded / Hardware Effects**: Same AIDL `IFactory` / `IEffect` interface, but processing occurs in the DSP. `libeffectproxy` is the HW/SW offload *proxy* that switches between a software and an offloaded implementation; it is not a CPU effect by itself.
 
 #### Effect Gotchas & Fast Path Demotion:
 - **Fast Path Demotion**: If a FastTrack attaches a software effect that cannot meet real-time timing deadlines, AudioFlinger **demotes** the track from FastMixer to a regular MixerThread. Symptom: Latency jumps from 4ms to 40ms upon enabling Equalizer.
@@ -223,9 +251,10 @@ AOSP documents that `ALOGx` can block and disturb FastMixer. `NBLOG` + `media.lo
 If `audioserver` dies:
 
 - Clients see `DEAD_OBJECT`
-- `init` restarts `audioserver`
-- Tracks must be recreated by apps
-- HAL streams close
+- `init` restarts `audioserver` (its `.rc` `onrestart` hooks also restart the audio and effect HAL services)
+- `AudioTrack` / `AudioRecord` in libaudioclient transparently re-create most tracks (`AudioTrack::restoreTrack_l()`); the app usually just hears a gap
+- `MediaPlayer` clients get `MEDIA_ERROR_SERVER_DIED`; AAudio streams are disconnected and the app must reopen them
+- HAL streams close and are reopened when Policy re-opens its outputs
 
 A one-time pop plus every app going silent is a **server death**, not a codec. Check tombstones.
 
@@ -243,10 +272,11 @@ frameworks/av/services/audioflinger/Threads.cpp
   MixerThread
   DirectOutputThread
   OffloadThread
+  SpatializerThread / BitPerfectThread / MmapThread
   RecordThread
 
-frameworks/av/services/audioflinger/FastMixer.cpp   (if present as split file)
-frameworks/av/services/audioflinger/Tracks.cpp      (or PlaybackTracks.cpp)
+frameworks/av/services/audioflinger/fastpath/FastMixer.cpp   (older trees: services/audioflinger/FastMixer.cpp)
+frameworks/av/services/audioflinger/Tracks.cpp      (all track types; headers PlaybackTracks.h / RecordTracks.h)
 frameworks/av/services/audioflinger/Configuration.h (TEE_SINK compile flag)
 
 HAL glue:
@@ -326,7 +356,7 @@ device: A2DP                    while you listen to the built-in speaker
 format: unexpected rate         resample cost or open failure nearby
 ```
 
-Official tee sink (userdebug/eng, compile flag `TEE_SINK` in `Configuration.h`, property `af.tee`) can write a WAV of what Flinger mixed. That is how you prove “zeros left Flinger” vs “zeros began below HAL.” Details in Module 20 and source.android.com/docs/core/audio/debugging.
+The tee sink (userdebug/eng only; source.android.com still documents `TEE_SINK` and the `af.tee` property, while current AudioFlinger implements it in `afutils/NBAIO_Tee` writing under `/data/misc/audioserver` — verify on your branch) can write a WAV of what Flinger mixed. That is how you prove “zeros left Flinger” vs “zeros began below HAL.” Details in Module 20 and source.android.com/docs/core/audio/debugging.
 
 ## Common Mistakes
 
@@ -366,7 +396,7 @@ Expected:
 
 1. Flinger is a set of timed threads, not a single mixer.
 2. Thread type is a contract: latency, effects, power, XRUN physics.
-3. Standby tears down the hardware path.
+3. Standby keeps the HAL stream open; the vendor HAL decides whether the hardware path is torn down.
 4. Dump twice to see motion.
 5. Prove whether PCM leaving Flinger is alive before you blame the DSP.
 

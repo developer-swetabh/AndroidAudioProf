@@ -10,12 +10,12 @@ This course reasons about **one default world**. If your board is older, transla
 | Core Audio HAL | **Stable AIDL** `android.hardware.audio.core` |
 | Effects HAL | **AIDL** `android.hardware.audio.effect` |
 | HAL service name (AOSP) | `vendor.audio-hal-aidl` (see `audioserver.rc`) |
-| Policy topology | Served by **`IModule` + `IConfig`**, not consumed by APM as the only XML contract |
+| Policy topology | Served by **`IModule` + `IConfig`** (queried by AudioFlinger's libaudiohal and handed to APM), not consumed by APM as the only XML contract |
 | Stream I/O | **`StreamDescriptor`**: FMQ audio + command/reply queues (`burst`, `start`, `standby`, …) |
 | AAOS | **15**, `car_audio_configuration.xml` **version 4** |
 | AAOS fade | `car_audio_fade_configuration.xml` + RRO `audioUseFadeManagerConfiguration` (default off) |
 | AAOS routing switch | `audioUseDynamicRouting` = true |
-| CAP engine | Optional (`useCoreAudioVolume` / `useCoreAudioRouting`). On **Android 15** CAP data is still commonly XML-backed; **full CAP-over-AIDL is Android 16+** |
+| CAP engine | Optional (`audioUseCoreVolume` / `audioUseCoreRouting`). On **Android 15** CAP data is still commonly XML-backed; **full CAP-over-AIDL is Android 16+** |
 
 ## What “AIDL-first” means when you debug
 
@@ -24,7 +24,8 @@ AudioFlinger / AudioPolicy
         ↓  libaudiohal (AIDL client)
 IModule  (instance "default", "bluetooth", "r_submix", …)
         ↓
-openOutputStream / openInputStream
+openOutputStream / openInputStream   (when Policy opens an output/input:
+        ↓                               boot, device attach, direct/offload)
         ↓
 IStreamOut / IStreamIn + IStreamCommon
         +

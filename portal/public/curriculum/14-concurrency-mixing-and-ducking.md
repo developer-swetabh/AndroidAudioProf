@@ -119,9 +119,37 @@ To duck media 12 dB when nav is active, something must:
 
 If step 2’s target is “the only PCM,” you are back to software duck.
 
+#### How AAOS signals the HAL: `IAudioControl`
+
+AudioControl is an **automotive-only** HAL; phones do not use it. On AAOS 15 the control surface is explicit:
+
+- **Ducking.** With `audioUseHalDuckingSignals=true` (AOSP default), CarAudioService (`CarDucking`) recomputes, per zone, which buses must be ducked whenever focus holders change, and calls `IAudioControl.onDevicesToDuckChange(DuckingInfo[])`. Each `DuckingInfo` has `zoneId`, `deviceAddressesToDuck`, `deviceAddressesToUnduck` and the focus holders (`usagesHoldingFocus`; AIDL v2+ adds `playbackMetaDataHoldingFocus`). The HAL/DSP attenuates **per bus**, because Android cannot attenuate a bus it does not mix.
+- **Muting.** With `audioUseCarVolumeGroupMuting=true`, group mutes go to `IAudioControl.onDevicesToMuteChange(MutingInfo[])` (`deviceAddressesToMute` / `deviceAddressesToUnmute`).
+- **HAL → Android.** The HAL can report gain changes it made (thermal, safety) with `registerGainCallback(IAudioGainCallback)`, and request focus for HAL-originated sounds with `registerFocusListener(IFocusListener)`. Android 14+ adds `setModuleChangeCallback(IModuleChangeCallback)` for dynamic gain-stage changes.
+
+```mermaid
+sequenceDiagram
+  participant Nav as Nav app
+  participant AS as AudioService
+  participant CAF as CarAudioFocus (CarAudioService)
+  participant CDK as CarDucking
+  participant AC as IAudioControl (HAL)
+  participant DSP as Amp/DSP
+  Nav->>AS: requestAudioFocus(GAIN_TRANSIENT_MAY_DUCK, USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+  AS->>CAF: onAudioFocusRequest (AudioPolicy focus extension)
+  CAF->>CAF: interaction matrix (media holder vs nav) → CONCURRENT
+  CAF-->>AS: GRANTED (media keeps focus)
+  CAF->>CDK: focus holders changed (zone 0)
+  CDK->>AC: onDevicesToDuckChange([DuckingInfo{zoneId:0, deviceAddressesToDuck:[bus0_media_out], usagesHoldingFocus:[MEDIA, NAV]}])
+  AC->>DSP: attenuate media bus (vendor ramp)
+  Note over CDK,AC: on nav abandon → deviceAddressesToUnduck
+```
+
+Source: https://source.android.com/docs/automotive/audio/audio-control-hal
+
 ### 4. System-enforced fade (Android 15 AAOS)
 
-Problem: focus is historically cooperative. A rude media app keeps blasting during a call.
+Problem: a rude media app keeps blasting during a call. On phones, focus has been **system-enforced since Android 12** (a `USAGE_MEDIA`/`USAGE_GAME` player that loses focus to another `AUDIOFOCUS_GAIN` is faded out; players that never requested focus are muted during calls). Android 15 also only grants focus to the top app or a foreground service. Before Android 12, focus was purely cooperative. AAOS has its own focus stack (CarAudioFocus), so the car needs its own enforcement:
 
 AAOS 15 can:
 
@@ -166,8 +194,11 @@ Phone duck:
   (and related; varies)
   AudioFlinger track volume / VolumeShaper
 
-HAL:
-  AudioControl onAudioFocusChange / ducking hooks (version-specific)
+AAOS ducking/muting signals:
+  packages/services/Car/service/src/com/android/car/audio/CarDucking.java
+  hardware/interfaces/automotive/audiocontrol/aidl/.../IAudioControl.aidl
+    onDevicesToDuckChange(DuckingInfo[]) / onDevicesToMuteChange(MutingInfo[])
+    registerFocusListener(IFocusListener) / registerGainCallback(IAudioGainCallback)
   vendor DSP graph mixers
 ```
 

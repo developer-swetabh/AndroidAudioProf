@@ -106,7 +106,7 @@ Default AIDL HAL contains an XML→AIDL converter. On a 15 bring-up you may stil
 | Core HAL | AIDL | AIDL |
 | Policy ports/routes | AIDL `IModule`/`IConfig` | AIDL |
 | CAP engine data | Typically still XML / parameter-framework files if CAP is enabled | CAP structures documented on the AIDL HAL (`AudioHalCapConfiguration.aidl`) |
-| AAOS CAP flags | `useCoreAudioVolume` / `useCoreAudioRouting` (14+) | Same flags, AIDL-backed config possible |
+| AAOS CAP flags | `audioUseCoreVolume` / `audioUseCoreRouting` (14+) | Same flags, AIDL-backed config possible |
 
 If you are on 15, do not cite `AudioHalCapConfiguration` as if APM is calling it. That is the 16 sentence.
 
@@ -158,7 +158,7 @@ Expected:
 1. `IModule.connectExternalDevice`
 2. Fill `audio.fmq` + `Command.burst`
 3. `Command.standby`
-4. `IModule.getAudioPorts` / `getAudioRoutes` + `IConfig.getEngineConfig`
+4. `IModule.getAudioPorts` / `getAudioRoutes` + `IConfig.getEngineConfig` — called by AudioFlinger's libaudiohal, which hands the result to APM (`getAudioPolicyConfig` → `loadFromApmAidlConfigWithFallback`)
 5. `ITelephony.switchAudioMode` and `IModule.updateAudioMode` on modules
 
 ## Key Takeaways

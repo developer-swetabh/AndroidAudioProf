@@ -246,10 +246,10 @@ sound {
     compatible = "simple-audio-card";
     simple-audio-card,name = "board-stereo-audio";
     simple-audio-card,format = "i2s";
-    simple-audio-card,bitclock-master = <&cpu_dai>;
-    simple-audio-card,frame-master = <&cpu_dai>;
+    simple-audio-card,bitclock-master = <&sound_cpu>;  /* phandle to the provider's DAI sub-node */
+    simple-audio-card,frame-master = <&sound_cpu>;     /* here: the CPU side provides BCLK + FSYNC */
 
-    simple-audio-card,cpu {
+    sound_cpu: simple-audio-card,cpu {
         sound-dai = <&i2s0>;
         dai-tdm-slot-num = <2>;
         dai-tdm-slot-width = <32>;
@@ -274,20 +274,20 @@ sound_card {
         cpu_endpoint: endpoint {
             remote-endpoint = <&amp_endpoint>;
             dai-format = "dsp_a";               /* DSP_A / TDM mode */
-            frame-master = <&cpu_dai>;          /* CPU drives FSYNC */
-            bitclock-master = <&cpu_dai>;       /* CPU drives BCLK */
+            frame-master;                       /* flag: this (CPU) side provides FSYNC */
+            bitclock-master;                    /* flag: this (CPU) side provides BCLK */
             dai-tdm-slot-num = <8>;             /* 8 TDM slots */
             dai-tdm-slot-width = <32>;          /* 32-bit slot width */
-            dai-tdm-slot-tx-mask = <0xff>;      /* Use all 8 slots */
+            dai-tdm-slot-tx-mask = <1 1 1 1 1 1 1 1>; /* one cell per slot: all 8 slots */
         };
     };
 };
 ```
 
 **Key DT Diagnostic Checks:**
-- **`bitclock-master` / `frame-master`**: If both CPU and codec point to `<&codec>` (or both to `<&cpu>`), one is acting as provider and one as consumer. If misconfigured so neither or both generate clocks, BCLK will be absent or contended.
+- **`bitclock-master` / `frame-master`**: Name the **clock provider** — the DAI that generates BCLK and FSYNC. Exactly one side provides each clock and the other consumes it. In `audio-graph-card` these are flags on the provider's endpoint; in `simple-audio-card` they are phandles to the provider's DAI node. If neither side is the provider, BCLK/FSYNC are absent; if both are, the clocks are contended.
 - **`dai-format`**: Must match the serial protocol expected by the chip (`"i2s"`, `"left_j"`, `"dsp_a"`, `"dsp_b"`).
-- **`dai-tdm-slot-tx-mask`**: Defines which time slots are enabled. A mask of `0x03` on an 8-slot bus means only slots 0 and 1 transmit audio.
+- **`dai-tdm-slot-tx-mask`** / **`-rx-mask`**: A **per-slot list**, one cell per slot (`<1 1 0 0 0 0 0 0>` = only slots 0 and 1 carry audio), parsed by `snd_soc_of_get_slot_mask()` (see the kernel `tdm-slot` binding). The **bitmask** form (`0x03` = slots 0 and 1) belongs to the C API `snd_soc_dai_set_tdm_slot(dai, tx_mask, rx_mask, slots, slot_width)` that machine drivers call.
 
 There is **no single AOSP file** for your board’s DAI map. It lives in the **kernel / vendor DSP** for that product. Say so in every bug report.
 

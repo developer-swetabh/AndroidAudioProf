@@ -101,7 +101,7 @@ AudioTrack track = new AudioTrack.Builder()
         .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
         .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
         .build())
-    .setBufferSizeInBytes(4 * 960)  // e.g., 4 periods of 960 frames × 2ch × 2 bytes
+    .setBufferSizeInBytes(4 * 960 * 4)  // 4 periods × 960 frames × (2 ch × 2 bytes) = 15,360 bytes (80 ms at 48 kHz)
     .setTransferMode(AudioTrack.MODE_STREAM)
     .build();
 
@@ -193,12 +193,14 @@ The shared memory avoids Binder copies for audio data. The app writes PCM into t
 AudioFlinger receives IAudioTrack::start()
     → Track::start()
     → track state → ACTIVE
-    → if PlaybackThread was in STANDBY:
-        → exit standby
-        → open HAL stream (IModule.openOutputStream)
-        → HAL returns IStreamOut + StreamDescriptor
     → track added to active mix set
     → mixer thread wakes up
+    → if the PlaybackThread was in STANDBY:
+        → exit standby on the ALREADY OPEN HAL stream:
+          the next write sends Command.start / Command.burst
+          (the stream was opened by IModule.openOutputStream when
+           APM opened this output at boot / device attach — see Step 5)
+        → the vendor HAL may re-open its PCM or DSP graph internally here
 ```
 
 ### The mixer thread loop (the heartbeat of Android audio)
@@ -216,8 +218,8 @@ PlaybackThread::threadLoop()
         2. Mix
             - for each ACTIVE track:
                 pull frames from server proxy (shared memory)
-                apply per-track volume
-                apply per-track effects
+                apply per-track volume (and resample if needed)
+            - effects run per audio SESSION (EffectChain), plus output-level effects
             - sum into the mix buffer (or memcpy for direct/offload)
 
         3. Effects
@@ -227,10 +229,11 @@ PlaybackThread::threadLoop()
             - fill audio.fmq with mixed PCM
             - send Command.burst on command FMQ
             - wait for Reply on reply FMQ
+            - pacing comes from here: the HAL write/burst blocks
+              until the hardware has room for the next period
 
-        5. Sleep
-            - calculate next deadline
-            - sleep until next period
+        5. Sleep (only when there is nothing to write)
+            - e.g. no active tracks, or a track is waiting for data
 
         6. Check for standby
             - if no ACTIVE tracks for timeout → enter standby
@@ -241,9 +244,11 @@ PlaybackThread::threadLoop()
 | Thread type | Typical period | Behavior |
 | --- | --- | --- |
 | MixerThread (deep buffer) | ~10–20 ms | Multiple tracks mixed; larger jitter tolerance |
-| MixerThread + FastMixer | ~2–5 ms (fast) | FastMixer runs a tight inner loop for low-latency tracks |
+| MixerThread + FastMixer | ~2–5 ms (fast) | FastMixer (a `FastThread` owned by the MixerThread, not a separate PlaybackThread) mixes fast tracks at the HAL period |
 | DirectOutputThread | Stream-dependent | Single track, no software mixing |
 | OffloadThread | Bursty | Compressed data to DSP |
+| SpatializerThread / BitPerfectThread | Mixer-like | Spatial audio output; bit-perfect USB output (Android 14+) |
+| MmapPlaybackThread | HAL burst | AAudio MMAP: the app writes the shared buffer; no AudioFlinger mix in exclusive mode |
 
 **If the mixer loop takes longer than one period to complete, XRUNs are mathematically inevitable.** This is the timing contract.
 
@@ -252,7 +257,7 @@ PlaybackThread::threadLoop()
 | Failure | Evidence | Dump field |
 | --- | --- | --- |
 | Track never ACTIVE | `play()` didn't propagate or focus paused it | Track state in `dumpsys media.audio_flinger` |
-| Thread stuck in standby | HAL open failed silently | `standby: yes` while user expects sound |
+| Thread stuck in standby | Standby exit (`Command.start`/first `burst`) failed or the output was never opened | `standby: yes` while user expects sound |
 | Track volume 0 | Focus loss, mute, fade | `vol=0.000` |
 | Underrun count climbing | App not writing fast enough | `underrun` counter |
 | Frames frozen | Mixer not pulling or app not writing | Dump twice; compare `frames` |
@@ -302,12 +307,14 @@ USAGE_MEDIA → CarAudioContext MUSIC → dynamic mix rule →
 
 ---
 
-## Step 5 — AIDL HAL: Opening the stream and burst
+## Step 5 — AIDL HAL: The (already open) stream and burst
 
-### What happens at stream open
+### When the stream was opened (before your `play()`)
+
+The HAL stream is **not** opened by `play()`. `AudioPolicyManager` opens outputs at boot for attached devices, when a device connects (`checkOutputsForDevice`), or on demand for direct/offload in `getOutputForAttr`. Each open goes `AudioFlinger::openOutput()` → `openOutput_l()` → `AudioHwDevice::openOutputStream()` → (AIDL) `IModule.openOutputStream`, and the PlaybackThread is created **around** that stream. After that, standby/resume are `Command.standby` / `Command.start` + `burst` on the same stream.
 
 ```text
-AudioFlinger (via libaudiohal)
+AudioFlinger::openOutput_l (via libaudiohal), at output-open time
     → IModule.openOutputStream(
         sourceMetadata,    // usage, tags
         offloadInfo,       // if offload
@@ -354,34 +361,40 @@ This is the **Android 15 sentence** for audio I/O:
 
 10. Flinger reads the Reply
 11. Flinger uses observable position for timestamps
-12. Flinger sleeps until next period
+12. Flinger mixes the next period; the next burst blocks until the HAL has room (that is the pacing)
 ```
 
 ### StreamDescriptor state transitions during playback
 
+Synchronous output stream, from `stream-out-sm.gv` (same machine as Module 08):
+
 ```text
-STANDBY ──[Command.start]──► IDLE ──[Command.burst]──► ACTIVE
-                                                          │
-                               ┌──[Command.pause]────────┘
-                               ▼
-                            PAUSED ──[Command.burst]──► ACTIVE
-                               │
-                               └──[Command.flush]──► IDLE
-                                                          │
-ACTIVE ──[Command.drain]──► DRAINING ──[drain complete]──► IDLE
-                                                          │
-                               ┌──[Command.standby]──────┘
-                               ▼
-                            STANDBY
-                            
-Any state ──[unrecoverable error]──► ERROR (only close is valid)
+STANDBY ──[start]──► IDLE ──[burst]──► ACTIVE ──[burst]──► ACTIVE
+STANDBY ──[burst]──► PAUSED            (pre-roll: data queued, consumer not started)
+
+ACTIVE  ──[pause]──► PAUSED
+PAUSED  ──[burst]──► PAUSED            (data is queued while paused)
+PAUSED  ──[start]──► ACTIVE
+PAUSED  ──[flush]──► IDLE              (buffer cleared)
+
+ACTIVE  ──[drain]──► IDLE              (synchronous drain)
+ACTIVE  ──[drain]──► DRAINING ──[buffer empty]──► IDLE
+DRAINING ─[burst]──► ACTIVE    DRAINING ─[pause]──► DRAIN_PAUSED
+DRAIN_PAUSED ─[start]─► DRAINING / ─[burst]─► PAUSED / ─[flush]─► IDLE
+
+IDLE ──[standby]──► STANDBY            (only from IDLE)
+
+IDLE / ACTIVE / DRAINING ──[hardware failure]──► ERROR
+any state ──[IStreamCommon.close]──► closed
 ```
+
+Async (non-blocking) HALs add `TRANSFERRING` / `TRANSFER_PAUSED` (`stream-out-async-sm.gv`).
 
 ### What can fail here
 
 | Failure | Evidence |
 | --- | --- |
-| `openOutputStream` fails | Format/port not supported by HAL; log shows error |
+| `openOutputStream` fails (at output open: boot, device connect, or direct/offload open) | Format/port not supported by HAL; output missing from the Flinger dump; log shows error |
 | Stream stays in `STANDBY` | `Command.start` never sent or failed; Flinger thread still in standby |
 | `xrunFrames` climbing | HAL not consuming bursts fast enough; or HAL's backend (pcm_write) is late |
 | `state = ERROR` | Unrecoverable HAL failure; only close+reopen recovers |
@@ -397,7 +410,7 @@ Any state ──[unrecoverable error]──► ERROR (only close is valid)
 
 ### What happens (varies by vendor)
 
-The AIDL HAL's `openOutputStream` + burst handling is vendor code. Common patterns:
+The AIDL HAL's `openOutputStream`, standby and burst handling is vendor code. Whether `Command.standby` closes the ALSA PCM (and `start` re-opens it) is a vendor decision. Common patterns:
 
 **Simple (AOSP default HAL / non-Qualcomm):**
 ```text
@@ -638,10 +651,11 @@ AudioPolicy: getOutputForAttr hits the dynamic mix rule
     → returns output for bus1_navigation_out
     ↓
 AudioFlinger: assigns track to the PlaybackThread for bus1_navigation_out
+    (that output and its HAL stream were opened at boot: bus devices are attached devices)
     ↓
-HAL: IModule.openOutputStream for port bus1_navigation_out
+HAL: the bus1_navigation_out stream leaves standby (Command.start / burst)
     ↓
-Vendor: opens PCM for nav use case (different from media)
+Vendor: (re)starts the PCM for the nav use case (different from media)
     ↓
 Kernel: different FE/BE binding (possibly different TDM slots / DAI)
     ↓
@@ -709,23 +723,31 @@ Now play again. Dump immediately.
 
 ### Exercise 3 — Predict the AAOS path
 
-Given this `car_audio_configuration.xml` (simplified):
+Given this `car_audio_configuration.xml` (v4 shape, simplified):
 
 ```xml
-<zone name="primary" isPrimary="true">
-  <volumeGroups>
-    <group>
-      <device address="bus0_media_out">
-        <context context="music"/>
-      </device>
-    </group>
-    <group>
-      <device address="bus1_navigation_out">
-        <context context="navigation"/>
-      </device>
-    </group>
-  </volumeGroups>
-</zone>
+<carAudioConfiguration version="4">
+  <zones>
+    <zone name="primary zone" isPrimary="true" occupantZoneId="0">
+      <zoneConfigs>
+        <zoneConfig name="primary zone config 0" isDefault="true">
+          <volumeGroups>
+            <group name="media">
+              <device address="bus0_media_out">
+                <context context="music"/>
+              </device>
+            </group>
+            <group name="navigation">
+              <device address="bus1_navigation_out">
+                <context context="navigation"/>
+              </device>
+            </group>
+          </volumeGroups>
+        </zoneConfig>
+      </zoneConfigs>
+    </zone>
+  </zones>
+</carAudioConfiguration>
 ```
 
 An app calls `AudioTrack` with `USAGE_MEDIA`. Predict:

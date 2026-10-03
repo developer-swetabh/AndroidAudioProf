@@ -142,8 +142,14 @@ AOSP invented NBLOG/media.log for this reason (Module 20). If glitches vanish wh
 Whenever track format does not match output thread format, AudioFlinger must perform real-time conversion in the mixer loop:
 
 #### A. Sample Rate Conversion (AudioResampler)
-- **Engine**: `AudioResampler::create()` instantiates a polyphase sinc/FIR resampler (`AudioResamplerDyn`).
-- **Quality levels**: `DYN_LOW_QUALITY` (linear), `DYN_MED_QUALITY` (cubic), `DYN_HIGH_QUALITY` (sinc with Kaiser window).
+- **Engine**: `AudioResampler::create()` picks an implementation from the requested quality (`media/libaudioprocessing/include/media/AudioResampler.h`):
+
+  | Quality | Value | Implementation |
+  | --- | --- | --- |
+  | `LOW_QUALITY` | 1 | Linear interpolator |
+  | `MED_QUALITY` | 2 | Cubic interpolator |
+  | `HIGH_QUALITY` / `VERY_HIGH_QUALITY` | 3 / 4 | Fixed multi-tap sinc FIR |
+  | `DYN_LOW_QUALITY` / `DYN_MED_QUALITY` / `DYN_HIGH_QUALITY` | 5 / 6 / 7 | `AudioResamplerDyn` polyphase FIR, increasing filter length per step; the only ones that support more than 2 channels |
 - **Cost**: High-quality sinc resampling 44.1 kHz to 48 kHz across 8 channels consumes significant DSP/CPU cycles per period.
 - **Buffer expansion**: Resampling introduces filter group delay (latency) and non-integer sample ratio buffering (e.g. 441 input frames for 480 output frames).
 
@@ -153,7 +159,7 @@ Whenever track format does not match output thread format, AudioFlinger must per
   ```text
   App 16-bit PCM ──► Convert to Float (division by 32768.0) ──► Mix / Effects ──► Convert & Clamp to HAL format (Float / S24_LE / S16_LE)
   ```
-- **Quantization & Dither**: When down-converting from float to 16-bit integer for the HAL, dither may be applied to reduce harmonic distortion.
+- **Quantization**: When down-converting from float to 16-bit integer for the HAL, AudioFlinger clamps and rounds (`memcpy_to_i16_from_float`). Do not assume dither is applied unless you can point to the code on your branch.
 
 #### C. Channel Mapping & Upmixing/Downmixing
 - **Downmix (Multi-channel -> Stereo)**: Uses ITU-R BS.775 downmix matrix coefficients (Center -3dB, Surrounds -3dB) or custom multichannel downmixers.

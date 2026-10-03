@@ -1,5 +1,7 @@
 # Case 08 — Assistant stays up; AA BT ringtone inaudible
 
+> **Illustrative:** the dumps and logs in this case are teaching reconstructions, not captures from a real device. Field names follow Android 15 AIDL + AAOS; exact `dumpsys` text varies by build.
+
 Google Assistant is already speaking. An Android Auto Bluetooth incoming call rings. Tester hears **only assistant**. Expected: assistant muted or ducked, ringtone on speaker.
 
 This is **not** case 06 (same-bus overlap) and **not** case 07 (CarMedia init). Focus policy did evict assistant. The app did not obey.

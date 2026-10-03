@@ -97,10 +97,10 @@ export const CREATE_STEPS = [
   {
     id: "play",
     short: "play()",
-    title: "start — open HAL only if STANDBY",
+    title: "start — leave STANDBY if needed",
     who: "app → IAudioTrack",
-    where: "Track::start → openOutputStream if needed",
-    line: "play() is not routing. If the thread was STANDBY, Flinger opens IModule.openOutputStream and Command.start. First chime can die here.",
+    where: "Track::start → Command.start/burst if the stream is in STANDBY",
+    line: "play() is not routing, and it does not open the HAL stream (that happened when Policy opened the output). If the thread was STANDBY, the next write sends Command.start + burst on the open stream; the vendor HAL may re-open its PCM/graph. First chime can die here.",
     dump: "software standby leaving; StreamDescriptor STANDBY→IDLE. See chime dumps if the WAV is short.",
     live: { control: [], data: ["app-flinger", "flinger-hal"] },
     hot: ["app", "flinger", "hal"],
@@ -194,7 +194,7 @@ export const STANDBY_STEPS = [
     title: "PlaybackThread software standby",
     who: "audioserver / PlaybackThread",
     where: "threadLoop idle → Command.standby",
-    line: "No ACTIVE tracks long enough: Flinger standbys the output. Next play() pays openOutputStream. This is not system suspend.",
+    line: "No ACTIVE tracks long enough: Flinger standbys the output (Command.standby; the stream stays open). Next play() pays standby exit — Command.start plus whatever the vendor HAL re-initialises. This is not system suspend.",
     dump: "software standby=yes. Dump twice — frozen frames with State=ACTIVE is a different bug.",
   },
   {
@@ -203,7 +203,7 @@ export const STANDBY_STEPS = [
     title: "StreamDescriptor STANDBY",
     who: "vendor HAL",
     where: "StreamDescriptor.state=STANDBY",
-    line: "HAL contract after open, and after Command.standby from IDLE. Producer and consumer inactive. Flinger uses Command.standby to get here, then may IStreamCommon.close.",
+    line: "HAL contract after open, and after Command.standby from IDLE. Producer and consumer inactive. The stream stays open in STANDBY; IStreamCommon.close only happens when Policy closes the output.",
     dump: "StreamDescriptor.state=STANDBY. Happy path: STANDBY --start→ IDLE --burst→ ACTIVE.",
   },
   {
@@ -212,7 +212,7 @@ export const STANDBY_STEPS = [
     title: "Track ACTIVE, descriptor already STANDBY",
     who: "audioserver vs vendor",
     where: "one-shot WAV vs idle timeout",
-    line: "Route can be right. The WAV finished. Flinger already tore the HAL down. First chime dies here — not a Policy miss.",
+    line: "Route can be right. The WAV finished before standby exit (Command.start, vendor PCM/graph restart, amp ramp) completed. First chime dies here — not a Policy miss.",
     dump: "Thread MIXER software standby=yes → leaving. StreamDescriptor.state=STANDBY. Track ACTIVE framesWritten=9600 (WAV done).",
   },
 ];

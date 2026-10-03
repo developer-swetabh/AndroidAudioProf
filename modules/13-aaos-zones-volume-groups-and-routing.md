@@ -31,7 +31,7 @@ The primary zone is the lobby. It is special: there is only one, id is `PRIMARY_
 
 - **Beginner:** One volume bar.
 - **Engineer:** All devices in the group receive the same gain changes; their HAL gain curves should match.
-- **Expert:** With `useFixedVolume`, Android does not attenuate PCM; it sends a group index to the HAL. With CAP volume, the group **name** must match the engine.
+- **Expert:** With `useFixedVolume`, Android does not attenuate PCM. CarAudioService maps the group's index to a **gain in millibels** from the `<gain>` stage declared on each bus device port, and applies it with `AudioManager.setAudioPortGain()` → APM/AudioFlinger `setAudioPortConfig` → HAL `IModule.setAudioPortConfig` (`AudioGainConfig`). The HAL never receives an “index.” With CAP volume, the group **name** must match the engine.
 
 **Context**
 
@@ -44,7 +44,7 @@ The primary zone is the lobby. It is special: there is only one, id is `PRIMARY_
 ### Config v2 shape (still everywhere)
 
 ```xml
-<audioZoneConfiguration version="2.0">
+<carAudioConfiguration version="2">
   <zone name="primary zone" isPrimary="true" occupantZoneId="0">
     <volumeGroups>
       <group>
@@ -60,7 +60,7 @@ The primary zone is the lobby. It is special: there is only one, id is `PRIMARY_
   <zone name="rear seat zone" audioZoneId="1" occupantZoneId="1">
     ...
   </zone>
-</audioZoneConfiguration>
+</carAudioConfiguration>
 ```
 
 ### Config v3 additions (Android 14)
@@ -81,7 +81,44 @@ Non-primary zones may have multiple `zoneConfig` entries (headrest vs headphones
 ```text
 applyFadeConfigs / fadeConfig  inside a zoneConfig
   → names defined in car_audio_fade_configuration.xml
+activationVolumeConfigs (top level) + activationConfig="..." on a volume group
+  → min/max activation volume, invocationType = onBoot / onSourceChanged / onPlaybackChanged
+  → only honoured when RRO audioUseMinMaxActivationVolume = true
 ```
+
+The full v4 skeleton (v3+ always nests groups under `zoneConfigs`):
+
+```xml
+<carAudioConfiguration version="4">
+  <activationVolumeConfigs>
+    <activationVolumeConfig name="on_boot_config">
+      <activationVolumeConfigEntry minActivationVolumePercentage="10"
+          maxActivationVolumePercentage="90" invocationType="onBoot"/>
+    </activationVolumeConfig>
+  </activationVolumeConfigs>
+  <zones>
+    <zone name="primary zone" isPrimary="true" occupantZoneId="0">
+      <zoneConfigs>
+        <zoneConfig name="primary zone config 0" isDefault="true">
+          <volumeGroups>
+            <group name="media" activationConfig="on_boot_config">
+              <device address="bus0_media_out">
+                <context context="music"/>
+              </device>
+            </group>
+            <!-- every context must be covered exactly once per zoneConfig -->
+          </volumeGroups>
+          <applyFadeConfigs>
+            <fadeConfig name="relaxed fading" isDefault="true"/>
+          </applyFadeConfigs>
+        </zoneConfig>
+      </zoneConfigs>
+    </zone>
+  </zones>
+</carAudioConfiguration>
+```
+
+Illustrative only: check attribute names against the AOSP sample `car_audio_configuration.xml` on your branch.
 
 Use v4 for every new example in this course. v2/v3 snippets above are what you inherit on upgrades, not what you write.
 
@@ -109,7 +146,7 @@ flowchart TD
     ContextMap --> BusAddress["Look up Context in Active zoneConfig -> Target Device Address B (e.g., bus0_media_out)"]
     BusAddress --> DynamicMix["AudioPolicyManager: Dynamic Mix Match (matches Usage X + User U) -> routes to Bus B"]
     DynamicMix --> AFThread["AudioFlinger: Assigns track to PlaybackThread for Bus Device Address B"]
-    AFThread --> HALStream["Core Audio HAL: openOutputStream / burst to Bus Device Address B"]
+    AFThread --> HALStream["Core Audio HAL: burst to the bus stream (opened at boot; Command.start if in standby)"]
 ```
 
 ## Detailed Explanation
@@ -149,7 +186,8 @@ The user has “the volume knob.” You may have five groups. The knob’s bindi
 
 - Android still tracks indices per group
 - PCM is not scaled in Flinger
-- HAL must apply gain
+- CarAudioService converts the group index to millibels (from the bus devicePort `<gain>` min/max/step) and calls `AudioManager.setAudioPortGain()` → `IModule.setAudioPortConfig(AudioGainConfig)`
+- HAL must apply that gain
 - If HAL no-ops gain, knobs lie
 
 CAP: group `name` attributes must match engine volume names; `useFixedVolume` must be false when using CAP volume (per official notes).

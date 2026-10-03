@@ -1,5 +1,7 @@
 # Case 01 — Healthy media (baseline)
 
+> **Illustrative:** the dumps and logs in this case are teaching reconstructions, not captures from a real device. Field names follow Android 15 AIDL + AAOS; exact `dumpsys` text varies by build.
+
 A driver-zone media app is playing. Cabin woofers have sound. Annotate this so you know what “good” looks like.
 
 ## Classification

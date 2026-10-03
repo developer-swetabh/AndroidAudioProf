@@ -121,8 +121,8 @@ Definitions use the course’s three-level habit only where a single sentence wo
 | | Core | AudioControl |
 | --- | --- | --- |
 | Plays PCM? | Yes | No |
-| Used on phones? | Yes | Rarely |
-| AAOS extras | Buses as devices | HAL focus, gain hooks |
+| Used on phones? | Yes | No (automotive-only HAL) |
+| AAOS extras | Buses as devices | HAL focus, gain callbacks, `onDevicesToDuckChange` / `onDevicesToMuteChange` |
 
 ### HIDL vs AIDL Audio HAL
 
@@ -190,11 +190,11 @@ Definitions use the course’s three-level habit only where a single sentence wo
 
 **Fade (AAOS 15)** — Framework VolumeShaper enforcement on focus loss.
 
-**FastMixer** — Low-period mix thread.
+**FastMixer** — Low-period mix thread (a `FastThread` owned by a MixerThread, not a PlaybackThread).
 
-**Fixed volume** — Android sends index; HAL/amp apply gain; PCM unscaled.
+**Fixed volume** — PCM unscaled; CarAudioService converts the group index to millibels and calls `setAudioPortGain` → HAL `setAudioPortConfig`; HAL/amp apply the gain.
 
-**Focus** — Prominence protocol. Catch: historically cooperative.
+**Focus** — Prominence protocol. Catch: system-enforced on phones only since Android 12 (cooperative before); AAOS uses CarAudioFocus.
 
 **hw_params** — ALSA hardware contract (rate, format, periods…).
 
@@ -216,7 +216,7 @@ Definitions use the course’s three-level habit only where a single sentence wo
 
 **Session** — Groups a track with effects; join key to dumps.
 
-**Standby** — Flinger/HAL idle power-down of an output.
+**Standby** — Flinger/HAL idle power-down of an output (`Command.standby`; the HAL stream stays open, the vendor may release the PCM).
 
 **Strategy** — Default-engine grouping of usages (MEDIA, PHONE, …).
 

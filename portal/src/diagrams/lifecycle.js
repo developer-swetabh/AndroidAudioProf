@@ -237,14 +237,14 @@ export function standbyZoomSvg(stepId) {
   const chime = stepId === "chime";
   return `<svg class="lc-svg viz-svg" viewBox="0 0 920 260" role="img" aria-label="two STANDBYs">
     ${HOTGLOW}
-    <text class="lc-hull-lab" x="24" y="22">same tear-down, two names</text>
+    <text class="lc-hull-lab" x="24" y="22">same idle state, two names</text>
     <g class="viz-node ${sw || chime ? "is-sel" : "is-dim"}">
       <rect x="40" y="48" width="380" height="160" rx="16"/>
       <foreignObject x="56" y="64" width="348" height="128">
         <div xmlns="http://www.w3.org/1999/xhtml" class="pipe-fo">
           <span class="pipe-kicker">audioserver · PlaybackThread</span>
           <strong class="pipe-title">software standby</strong>
-          <span class="pipe-sub">Idle too long → Command.standby. Next play() pays openOutputStream.</span>
+          <span class="pipe-sub">Idle too long → Command.standby (stream stays open). Next play() pays standby exit.</span>
         </div>
       </foreignObject>
     </g>

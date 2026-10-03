@@ -10,7 +10,7 @@ On this course’s reference platform the Audio HAL is **Stable AIDL**:
 
 AudioFlinger opens streams on `IModule` and moves PCM through a **`StreamDescriptor`**: command FMQ + reply FMQ + audio FMQ (`burst`), not through HIDL `IStreamOut.write()`.
 
-Audio Policy Manager **asks the HAL for topology** (`IModule.getAudioPorts`, `getAudioRoutes`, `IConfig`). A leftover XML file may exist *inside* a vendor `IConfig` implementation. You still debug the AIDL objects.
+Audio Policy Manager **gets its topology from the HAL** (`IModule.getAudioPorts`, `getAudioRoutes`, `IConfig`) — via AudioFlinger's libaudiohal, which queries the HAL and hands APM the converted config. APM itself has no HAL binder. A leftover XML file may exist *inside* a vendor `IConfig` implementation. You still debug the AIDL objects.
 
 HIDL (`android.hardware.audio@7.1` and earlier) is **history**. New HAL APIs after Android 14 are **AIDL-only**.
 
@@ -136,6 +136,7 @@ stateDiagram-v2
     [*] --> STANDBY: openOutputStream
 
     STANDBY --> IDLE: Command.start
+    STANDBY --> PAUSED: Command.burst (pre-roll)
     IDLE --> ACTIVE: Command.burst
     ACTIVE --> ACTIVE: Command.burst
 
@@ -145,6 +146,7 @@ stateDiagram-v2
     PAUSED --> IDLE: Command.flush
 
     ACTIVE --> DRAINING: Command.drain
+    ACTIVE --> IDLE: Command.drain (synchronous)
     DRAINING --> IDLE: buffer empty
     DRAINING --> ACTIVE: Command.burst
     DRAINING --> DRAIN_PAUSED: Command.pause
@@ -154,7 +156,11 @@ stateDiagram-v2
 
     IDLE --> STANDBY: Command.standby
 
-    STANDBY --> [*]: IStreamCommon.close
+    IDLE --> ERROR: hardware failure
+    ACTIVE --> ERROR: hardware failure
+    DRAINING --> ERROR: hardware failure
+
+    STANDBY --> [*]: IStreamCommon.close (legal from any state)
     ERROR --> [*]: IStreamCommon.close
 ```
 
@@ -165,14 +171,18 @@ This is the **synchronous output** machine (`stream-out-sm.gv`) — the MixerThr
 ```text
 HIDL era:  APM parses vendor audio_policy_configuration.xml (XSD is HAL contract)
 
-AIDL era:  APM calls
+AIDL era:  AudioPolicyService::createAudioPolicyManager
+             → AudioFlinger getAudioPolicyConfig()
+             → libaudiohal (DevicesFactoryHalAidl / DeviceHalAidl) calls:
              IModule.getAudioPorts()
              IModule.getAudioRoutes()
              IConfig.getEngineConfig()
              IConfig.getSurroundSoundConfig()
-           External device:
+           → APM: AudioPolicyConfig::loadFromApmAidlConfigWithFallback()
+             (HIDL / unavailable → loadFromApmXmlConfigWithFallback(): XML)
+           External device (APM decision, AF forwards):
              IModule.connectExternalDevice / disconnectExternalDevice
-           Live route:
+           Live route (APM → AF createAudioPatch → PatchPanel → HAL):
              IModule.setAudioPatch / resetAudioPatch / setAudioPortConfig
 ```
 
@@ -186,7 +196,7 @@ The AOSP default `IConfig` can still **convert XML to AIDL types** so vendors ca
 | `IEffect` | `open`, `setParameter` / `getParameter`, `command(START/STOP/RESET)` |
 | `Descriptor` / `Capability` / `Parameter` | Capabilities and params |
 
-HIDL `audio_effects.xml` + `effectProxy` move into the **framework**, which queries the factory. Do not start an Android 15 debug at `audio_effects.xml` unless the vendor’s `IFactory` still wraps one.
+Effect libraries are loaded and executed by the **effects HAL service** (AIDL `IFactory`, e.g. service `vendor.audio-effect-hal-aidl`), not inside audioserver. AudioFlinger's EffectChain drives each effect through `IEffect` and FMQ. The AOSP default AIDL factory parses `audio_effects_config.xml`. `libeffectproxy` is the HW/SW offload *proxy*, not a CPU effect. Do not start an Android 15 debug at the legacy `audio_effects.xml` unless the vendor’s `IFactory` still reads one.
 
 ## Detailed Explanation
 
@@ -228,7 +238,7 @@ A module publishes itself **only after successful init** and is considered perma
 
 ### 5. Volume
 
-Same product split as before: software volume in Flinger vs hardware `IModule` / stream gain vs AAOS fixed volume (index to HAL). AIDL did not delete that split. It deleted some HIDL method names.
+Same product split as before: software volume in Flinger vs hardware `IModule` / stream gain vs AAOS fixed volume (CarAudioService turns the group index into millibels and calls `AudioManager.setAudioPortGain()` → `IModule.setAudioPortConfig` with an `AudioGainConfig`; the HAL never receives an index). AIDL did not delete that split. It deleted some HIDL method names.
 
 ### 6. TinyALSA is still not the HAL
 
@@ -329,7 +339,7 @@ connectExternalDevice never called for a USB/BT jack
 | Mistake | Reality |
 | --- | --- |
 | Searching `IDevice` / `IDevicesFactory` on a 15 tree | AIDL uses `IModule` and ServiceManager |
-| “APM reads audio_policy_configuration.xml” as the 15 sentence | APM reads `IModule`/`IConfig`; XML may only feed the converter |
+| “APM reads audio_policy_configuration.xml” as the 15 sentence | APM gets `IModule`/`IConfig` data via AudioFlinger/libaudiohal; XML may only feed the converter |
 | Calling burst “the same as write()” | Burst is FMQ + state machine; HAL must drain the whole FMQ |
 | Debugging HIDL 7 string enums on AIDL ports | Types live in `android.media.audio.common` |
 | Treating AudioControl as Core HAL | Still a car sidecar |

@@ -75,6 +75,18 @@ On the Android 15 reference HAL, SCO/HFP controls live on **`IBluetooth`** retri
 
 Cabin buses can stay up while a **zone config** switches a passenger to BT headphones (Module 13). Driver media may remain on woofers. Do not assume “BT connected” globally reroutes the car.
 
+### Bluetooth roles in the car (head unit ≠ phone)
+
+The profile table above is written from a **phone's** point of view (Android is the A2DP source and the HFP audio gateway). An AAOS head unit usually plays the **opposite** roles towards the driver's phone:
+
+| Use case | Head unit role | What happens to the audio |
+| --- | --- | --- |
+| Phone music in the car | **A2DP Sink** (+ AVRCP controller) | Media arrives over Bluetooth, is decoded by the Bluetooth stack, and is played **locally** by the car's Bluetooth media app/service as an ordinary `USAGE_MEDIA` player — so it lands on the car's media bus like any other media app |
+| Phone calls through the car | **HFP HF** (hands-free unit) | SCO/eSCO voice from the phone's AG is rendered to the car's call path; the car mic is sent back to the phone |
+| Passenger BT headphones (if supported) | A2DP **source** to that headset | A separate output device, usually tied to a passenger zone config |
+
+The Core HAL `bluetooth` module (A2DP/LE source offload, `IBluetooth`/`IBluetoothA2dp`/`IBluetoothLe`) and LE Audio paths are separate subjects from the head-unit sink/HF roles; check which one a bug is about before reading code.
+
 ## Detailed Explanation
 
 ### 1. Routing vs Bluetooth stack
@@ -213,24 +225,24 @@ HDMI output open failed (format not in EDID)
 
 ## Practice
 
-User: “Car Bluetooth is connected but music stays in the cabin.”
+User: “My phone is connected to the car over Bluetooth, but its music doesn't play through the car speakers.”
 
 1. What three facts do you collect?
 2. Give an AAOS-native explanation that is not a bug.
-3. Give a Policy-state bug explanation.
+3. Give a framework/Policy-side bug explanation.
 
 Expected:
 
-1. Policy available devices; Flinger track device/address; whether dynamic mix forces a cabin bus; BT profile (A2DP vs HFP only).
-2. Product routes driver media only to cabin; BT is for phone calls or a passenger zone. By design.
-3. A2DP never reached `setDeviceConnectionState(AVAILABLE)`, or strategy prefers speaker due to a sticky preferred device.
+1. Which profiles connected (A2DP Sink + AVRCP, or HFP HF only); whether the car's Bluetooth media player has a Flinger track (`USAGE_MEDIA`, which bus/address, ACTIVE or paused); who holds media focus in that zone.
+2. Only HFP connected (the phone was paired for calls only), or another car media source holds focus and the BT media source was never selected. By design.
+3. The BT media player track exists but is routed to the wrong zone/bus (user/zone affinity or dynamic-mix mismatch), or it is ACTIVE with volume 0 (group mute/fade). Debug it as a normal media track.
 
 ## Key Takeaways
 
 1. External paths are new devices, new clocks, new HALs.
 2. Settings connected ≠ Policy available ≠ Flinger moved.
 3. Profiles are not interchangeable.
-4. AAOS mixes can legally ignore a headset.
+4. AAOS mixes can legally ignore a headset. A head unit is usually A2DP Sink + HFP HF, not a source.
 5. Passthrough cannot mix.
 
 ## Next

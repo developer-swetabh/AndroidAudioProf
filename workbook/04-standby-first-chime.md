@@ -1,5 +1,7 @@
 # Case 04 — First seatbelt chime missing after idle
 
+> **Illustrative:** the dumps and logs in this case are teaching reconstructions, not captures from a real device. Field names follow Android 15 AIDL + AAOS; exact `dumpsys` text varies by build.
+
 Engineering-mode continuous tone on the system bus is fine. After 10 minutes parked, the first one-shot chime is missing; the second (1 s later) is heard.
 
 ## Classification

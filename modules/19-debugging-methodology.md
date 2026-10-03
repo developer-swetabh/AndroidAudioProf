@@ -221,7 +221,7 @@ adb shell dumpsys car_service --services CarAudioService  # if AAOS
 adb shell dumpsys media.audio_flinger    # record underrun counters
 sleep 2
 adb shell dumpsys media.audio_flinger    # compare underrun counters
-adb shell dmesg | grep -iE 'underrun|xrun|ebeam|pipe'
+adb shell dmesg | grep -iE 'underrun|xrun|EPIPE|-32'
 ```
 
 **Interpretation & Next Branch:**
@@ -245,7 +245,7 @@ adb logcat -v threadtime -s AudioTrack AudioFlinger APM_AudioPolicyManager audio
 
 **Interpretation & Next Branch:**
 1. **Delta between `AudioTrack.play()` and `AudioFlinger Track::start()` > 20ms:** Binder IPC delay or main thread contention in app/audioserver.
-2. **Delta between `Track::start()` and HAL `openOutputStream()` / `Command.start` > 50ms:** Thread standby exit latency. DSP graph creation / ACDB calibration lookup latency.
+2. **Delta between `Track::start()` and the HAL leaving standby (`Command.start` / first `burst` reply) > 50ms:** Standby exit latency on the already open stream. The vendor HAL may be re-opening its PCM, creating the DSP graph or looking up ACDB calibration. (`openOutputStream` is not on this path; it ran when the output was opened.)
 3. **HAL burst occurs immediately, but acoustic output delayed by 100ms+:**
    - Codec / Smart Amp power-up ramp delay.
    - Amplifier unmute GPIO sequence deliberately delaying to prevent pops.
@@ -265,7 +265,7 @@ adb shell dumpsys media.audio_flinger | grep -A3 -i 'vol'
 **Interpretation & Next Branch:**
 1. **Volume group index changes in `dumpsys car_service`, but Flinger volume stays `1.000`:**
    - Normal on AAOS with `useFixedVolume=true`. AudioFlinger does not attenuate PCM; HAL / external DSP / smart amp owns gain.
-   - Check HAL log for `setGain` / `setMasterVolume` / vendor volume IPC. If HAL ignores the callback, volume will not move.
+   - CarAudioService applies the group's gain in millibels with `AudioManager.setAudioPortGain()`, which reaches the HAL as `IModule.setAudioPortConfig` with an `AudioGainConfig` on the bus device port. Check the HAL log for that call (and the vendor amp/DSP IPC behind it). `setMasterVolume` is not the per-group mechanism. If the HAL ignores the port config, volume will not move.
 2. **Volume slider in UI does not change the active volume group:** UI focused on media volume while sound is navigation or system sound.
 3. **Hardware audio screams at min non-zero volume:** Mismatch between framework volume curve (logarithmic) and amplifier gain step table (linear or double-attenuated).
 
@@ -282,7 +282,7 @@ adb shell dumpsys bluetooth_manager
 
 **Interpretation & Next Branch:**
 1. **`AUDIO_DEVICE_OUT_BLUETOOTH_A2DP` still listed in Policy available devices:** Bluetooth stack crashed or failed to call `AudioService.setDeviceConnectionState(UNAVAILABLE)`. AudioFlinger is writing to a dead HAL stream.
-2. **Policy updated to `SPEAKER`, but Flinger thread is in `standby: yes` or has `ERROR` state:** Speaker HAL stream failed to re-open after BT stream closed. Check HAL logs for resource contention or DSP graph teardown failure.
+2. **Policy updated to `SPEAKER`, but Flinger thread is in `standby: yes` or has `ERROR` state:** The speaker output is already open, so this is standby exit failing on that stream (`Command.start`/`burst` error), or the vendor HAL failing to re-acquire the speaker PCM/graph after the BT path released it. Check HAL logs for resource contention or DSP graph teardown failure.
 3. **Policy and Flinger both show `SPEAKER`, frames moving, but no sound:** Power management / DAI clock failure during device switch. Codec DAPM route or amplifier enable GPIO dropped during reroute and never re-asserted.
 
 ## Evidence menu (use the fewest)
@@ -298,7 +298,7 @@ adb shell dumpsys bluetooth_manager
 | Kernel? | `dmesg` |
 | PCM? | `/proc/asound`, tinyplay bypass |
 | Mixer? | `tinymix` diff |
-| What PCM actually contained? | tee sink (debug builds) |
+| What PCM actually contained? | tee sink (userdebug only; verify on your branch) |
 | Scheduling? | Perfetto with audio tags |
 | Vendor DSP? | *board-supported* vendor logs only |
 

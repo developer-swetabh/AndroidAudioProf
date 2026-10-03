@@ -135,6 +135,8 @@ adb logcat -v threadtime -b main,system,crash
 
 ### Correlation
 
+Illustrative timeline (reconstructed, not a real capture). The `pcm_open` line is a vendor HAL re-opening its PCM on standby exit; the AIDL stream itself was opened long before:
+
 ```text
 12:01:03.100  app        AudioTrack start session=77
 12:01:03.112  audioserver AudioFlinger start track 77
@@ -143,11 +145,20 @@ adb logcat -v threadtime -b main,system,crash
 12:01:03.180  kernel      asoc trigger start
 ```
 
-If HAL open is 2 seconds later, you found first-prompt latency. If HAL open never appears, last-known-good is Flinger/Policy.
+If the vendor HAL's standby exit (`pcm_open`/graph start) is 2 seconds later, you found first-prompt latency. If it never appears, last-known-good is Flinger/Policy.
 
-## Tee sink (official AOSP debug)
+## Tee sink (official AOSP debug — userdebug only, verify on your branch)
 
-Documented at source.android.com/docs/core/audio/debugging.
+Documented at source.android.com/docs/core/audio/debugging. The page still describes the `TEE_SINK` flag and `af.tee` property; current AudioFlinger implements the tee in `services/audioflinger/afutils/NBAIO_Tee.cpp`, writing under `/data/misc/audioserver`. Property names and bits have changed over releases, so treat the list below as historical and check the code on your branch.
+
+Before reaching for the tee, use the `dumpsys` options that every build has:
+
+```bash
+adb shell dumpsys media.audio_flinger --hal       # HAL-side stream state
+adb shell dumpsys media.audio_flinger --stats     # per-thread timing statistics
+adb shell dumpsys media.audio_flinger --effects   # effect chains and their state
+adb shell dumpsys media.audio_flinger --memory    # shared-memory heaps
+```
 
 Purpose: keep a short recent PCM from Flinger for analysis.
 

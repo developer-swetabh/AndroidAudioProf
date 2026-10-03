@@ -53,7 +53,7 @@ Audio HAL                 hardware/interfaces/audio (HIDL or AIDL)
 Kernel driver             ALSA / other
 ```
 
-TinyALSA (`external/tinyalsa`) is the recommended userspace ALSA library because the full ALSA userspace library is GPL.
+TinyALSA (`external/tinyalsa`) is the recommended userspace ALSA library for HALs: it is small and BSD-licensed, while the full ALSA userspace library (alsa-lib) is LGPL-2.1.
 
 ### Corrected end-to-end map used in this course
 
@@ -69,7 +69,7 @@ This is the diagram you should be able to draw from memory. It fixes three probl
 │  AudioTrack / AudioRecord / MediaPlayer / AAudio         │
 └───────┬──────────────────────────────────────────┬───────┘
         │ Binder IAudioService                     │ Binder IAudioFlinger.createTrack
-        │ focus / volume / devices                 │ then IAudioTrack PCM
+        │ focus / volume / devices                 │ then shared-memory PCM
         v                                          v
 ┌───────────────────────────┐            ┌───────────────────────────┐
 │ system_server             │            │ AudioFlinger (audioserver)│
@@ -110,8 +110,8 @@ The app does **not** Binder to AudioPolicy for `createTrack`. Flinger asks Polic
 graph TD
     App["App process<br/>AudioTrack / AAudio"]
     App -->|"Binder IAudioService<br/>focus / volume"| SS["system_server<br/>AudioService<br/>+ CarAudioService on AAOS"]
-    App -->|"Binder IAudioFlinger.createTrack<br/>then IAudioTrack PCM"| AF["AudioFlinger (audioserver)<br/>PlaybackThread / mix"]
-    SS -->|"devices / volume / focus dispatch"| APS["AudioPolicyService (audioserver)<br/>ports / mixes / volume"]
+    App -->|"Binder IAudioFlinger.createTrack<br/>(IAudioTrack = control only)<br/>PCM via shared-memory cblk ring"| AF["AudioFlinger (audioserver)<br/>PlaybackThread / mix"]
+    SS -->|"device connection / volume / dynamic mixes<br/>(focus stays in AudioService)"| APS["AudioPolicyService (audioserver)<br/>ports / mixes / volume"]
     AF <-->|"getOutputForAttr / startOutput<br/>peers, not a stack"| APS
     AF -->|"write audio.fmq then Command.burst"| HAL["Audio HAL IModule<br/>StreamDescriptor"]
     HAL -.->|Optional vendor layer| Vendor["Vendor Middleware<br/>(PAL / ACDB / AudioReach)"]
@@ -134,8 +134,8 @@ graph TD
 
 ```text
 AudioTrack constructor / native_setup
-  → Binder IAudioFlinger.createTrack
-  → AudioSystem.getOutputForAttr → AudioPolicyService  (device / output thread)
+  → Binder IAudioFlinger.createTrack(CreateTrackRequest)
+  → inside AudioFlinger::createTrack: AudioSystem::getOutputForAttr → AudioPolicyService  (device / output thread)
   → returns IAudioTrack
 
 Focus is a different Binder, no PCM:
@@ -145,10 +145,38 @@ Focus is a different Binder, no PCM:
 AudioTrack.play()
   → Track::start
   → Policy startOutput (ref count / volume — route was already chosen)
-  → if PlaybackThread was STANDBY: IModule.openOutputStream, Command.start
+  → if the (already open) HAL stream is in STANDBY: Command.start / first Command.burst
+    (the stream was opened earlier by IModule.openOutputStream when APM opened the output)
   → first Command.burst
   → pcm_start / trigger START
   → DAI clocks + DMA running
+```
+
+The same control path as a sequence (AIDL HAL, Android 15). Note where `openOutputStream` sits: once, before any app plays.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant App as App (AudioTrack)
+  participant AF as AudioFlinger
+  participant APM as AudioPolicyManager
+  participant MT as MixerThread (output N)
+  participant HAL as AIDL StreamOut (vendor)
+  Note over APM,HAL: At boot / device attach: APM → AF.openOutput → IModule.openOutputStream<br/>MixerThread is created around the already-open stream
+  App->>AF: IAudioFlinger.createTrack(CreateTrackRequest)
+  AF->>APM: getOutputForAttr(attr, session, ...)
+  APM-->>AF: output N, device, portId
+  AF->>MT: createTrack_l() → shared memory (cblk + ring)
+  AF-->>App: IAudioTrack + cblk
+  App->>AF: IAudioTrack.start()
+  AF->>APM: startOutput(portId) (volume, patch if needed)
+  loop every HAL period
+    App-->>MT: write PCM into shared ring (no Binder)
+    MT->>MT: prepareTracks_l / mix / effects
+    MT->>HAL: write → audio.fmq + Command.burst (STANDBY→start first if needed)
+    HAL-->>MT: Reply (fmqByteCount, observable, xrunFrames, state)
+  end
+  Note over MT,HAL: Idle timeout → Command.standby (stream stays open)
 ```
 
 **Data path** after start:
@@ -195,7 +223,7 @@ Apps must not talk to the HAL. Reasons:
 - HAL implementations are unstable across vendors
 - Real-time mixing cannot be scheduled in a random app process
 
-So the client is a Binder proxy. That has a cost: **IPC wakeups and copies** (mitigated by shared memory for audio buffers). Fast paths exist specifically because Binder is too expensive for every 2–5 ms period.
+So the client is a Binder proxy. That has a cost: **IPC wakeups and copies** (mitigated by shared memory for audio buffers). No track sends PCM over Binder per buffer: after `createTrack`, samples move through the shared-memory `audio_track_cblk_t` ring and Binder carries only control calls. Fast tracks exist for a different reason: to skip the normal MixerThread's larger period and be mixed by FastMixer at the HAL period.
 
 ### 3. What “an output” means
 
@@ -259,7 +287,7 @@ Native client:
         ↓ Binder IAudioFlinger / IAudioTrack
 AudioFlinger:
   frameworks/av/services/audioflinger/AudioFlinger.cpp
-  frameworks/av/services/audioflinger/PlaybackTracks.cpp  (or Tracks.cpp on older trees)
+  frameworks/av/services/audioflinger/Tracks.cpp  (all track types; header PlaybackTracks.h)
   frameworks/av/services/audioflinger/Threads.cpp
         ↓ may call
 AudioPolicy:
@@ -270,7 +298,7 @@ AudioPolicy:
 HAL wrapper:
   frameworks/av/media/libaudiohal/          (AIDL client on the reference platform)
         ↓
-IModule.openOutputStream → StreamDescriptor
+StreamOutHalAidl (wraps the stream opened earlier via IModule.openOutputStream)
         ↓
 Command.burst on audio.fmq
         ↓
@@ -289,12 +317,12 @@ A music app starts a stereo 48 kHz track with `USAGE_MEDIA`.
 
 1. `AudioTrack` constructor Binders to **AudioFlinger** (`IAudioFlinger.createTrack`). The app does not call Policy.
 2. Flinger calls `AudioSystem.getOutputForAttr`. AudioPolicy selects a strategy (MEDIA) and a device (speaker, or a bus on AAOS).
-3. AudioFlinger attaches the track to an existing PlaybackThread that already matches that output, or opens a new one (`openOutput`).
-4. If the thread was in **standby**, `play()` / `Track::start` opens the HAL stream (`openOutputStream`, `Command.start`). That is often the first time TinyALSA `pcm_open` runs.
+3. AudioFlinger attaches the track to an existing PlaybackThread that already matches that output, or, for direct/offload outputs, APM opens a new one on demand (`AudioFlinger::openOutput` → `IModule.openOutputStream`). Mixer outputs for attached devices were already opened at boot.
+4. The HAL stream is **already open**: APM opened the output (and AudioFlinger called `IModule.openOutputStream`) at boot or device attach, and the PlaybackThread wraps that stream. If the thread is in **standby**, the first write after `play()` sends `Command.start`/`Command.burst` to leave standby. Many vendor HALs close the ALSA PCM (or tear down a DSP graph) on standby and run `pcm_open` again here — that is a vendor choice, and it is the usual cause of late first sound.
 5. `play()` marks the track ACTIVE. The mixer thread wakes.
 6. The app writes PCM. The mixer writes `audio.fmq` and sends `Command.burst`.
 7. ALSA periods elapse. DMA keeps the DAI fed.
-8. If the app stops writing, the track underruns; after idle, the thread may go back to standby (`Command.standby` / close) and tear down the PCM.
+8. If the app stops writing, the track underruns; after idle, the thread goes back to standby (`threadLoop_standby` → `Command.standby`). The stream stays open; the vendor HAL may release the PCM.
 
 Standby is why “first sound after idle is late” is a different bug from “steady-state glitch.”
 
@@ -307,7 +335,7 @@ Not “why is my codec register 0x22 cleared.” Instead:
 1. Which **process** mixed the audio?
 2. Which **output thread** owns the track?
 3. Which **device type / address** did policy select?
-4. Did the HAL stream open *after* play or was it already open?
+4. Was the (already open) HAL stream in standby when play started, and how long did standby exit take?
 
 ### First correlation exercise
 
