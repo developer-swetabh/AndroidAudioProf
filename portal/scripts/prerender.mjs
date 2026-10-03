@@ -8,14 +8,26 @@
  *   dist/sitemap.xml, dist/404.html
  *
  * Each page carries its own <title>, description, canonical, Open Graph/Twitter
- * tags and JSON-LD, plus the lesson rendered to static HTML inside #app (the SPA
- * replaces it on boot). Existing hash URLs (/#/learn/06) are untouched.
+ * tags and JSON-LD. The body is the same markup the app renders (shared pure
+ * functions in src/shellMarkup.js, src/pages/homeMarkup.js, src/pages/learnMarkup.js),
+ * so the first paint needs no JavaScript and nothing shifts when the app boots.
+ * The home page (dist/index.html) is prerendered the same way.
+ *
+ * Finally Beasties inlines the CSS each page's first screen needs and loads the
+ * full stylesheet without blocking rendering.
+ * Existing hash URLs (/#/learn/06) are untouched.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { marked } from "marked";
+import Beasties from "beasties";
 import { TRACKS, MODULES } from "../src/content/catalog.js";
+import { getLesson } from "../src/content/lessons.js";
+import { shellHtml } from "../src/shellMarkup.js";
+import { homeHtml } from "../src/pages/homeMarkup.js";
+import { anchorHeadings, learnPageHtml, treeHtml } from "../src/pages/learnMarkup.js";
+import { enhanceModuleHtml } from "../src/lib/markdown.js";
 
 const portal = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dist = path.join(portal, "dist");
@@ -65,7 +77,21 @@ function renderMd(md) {
   return html.replace(/href="([^"]*)"/g, (all, url) => `href="${escAttr(mapHref(url.replace(/&amp;/g, "&")))}"`);
 }
 
-function page({ title, description, canonical, ogType = "article", modified, ld, body }) {
+/** On clean-path pages, hash routes become real URLs (crawlable, work before JS). */
+function staticLinks(html) {
+  return html.replace(/href="#\/([^"]*)"/g, (all, route) => {
+    const m = /^learn(?:\/([\w-]+))?\/?$/.exec(route);
+    if (m) return `href="${m[1] ? `/learn/${m[1]}/` : "/learn/"}"`;
+    return `href="/#/${route}"`;
+  });
+}
+
+// If the URL carries a different hash route (e.g. /#/debug), drop the static page
+// before first paint so it does not flash; the app renders the right one.
+const hashGuard = (key) =>
+  `<script>(function(){var h=location.hash,k=${JSON.stringify(key)};if(h.indexOf("#/")===0&&h.replace(/^#\/|\/$/g,"")!==k&&!(k==="home"&&h==="#/")){var a=document.getElementById("app");a.removeAttribute("data-prerendered");var m=document.getElementById("app-main");if(m)m.innerHTML="";}})();</script>`;
+
+function page({ title, description, canonical, ogType = "article", modified, ld, body, key = "" }) {
   let h = shell;
   const set = (re, val) => {
     if (!re.test(h)) throw new Error(`prerender: pattern not found in dist/index.html: ${re}`);
@@ -85,12 +111,58 @@ function page({ title, description, canonical, ogType = "article", modified, ld,
     ...ld.map(jsonLd),
   ].join("\n    ");
   set(/<\/head>/, `    ${extra}\n  </head>`);
-  set(/<div id="app"><\/div>/, `<div id="app">${body}</div>`);
+  set(
+    /<div id="app"><\/div>/,
+    key ? `<div id="app" data-prerendered="${key}">${body}</div>${hashGuard(key)}` : `<div id="app">${body}</div>`,
+  );
   return h;
 }
 
-const staticNav = `<header class="app-nav"><a class="brand" href="/"><span class="brand-text">${SITE_NAME}</span></a>
-  <nav class="nav-links" aria-label="Primary"><a href="/">Home</a> <a href="/learn/">Learn</a> <a href="/#/glossary">Glossary</a> <a href="/#/debug">Debug</a></nav></header>`;
+const cleanHref = (id) => (id ? `/learn/${id}/` : "/learn/");
+
+/**
+ * Lesson flow diagrams are built with DOM calls. Run them once in linkedom so the
+ * static page already shows the diagram (it is usually the largest element on a
+ * phone screen). The app re-mounts the same diagram on boot. Any failure just
+ * leaves the slot empty, exactly as before.
+ */
+async function flowRenderer() {
+  try {
+    const { parseHTML } = await import("linkedom");
+    const w = parseHTML("<!doctype html><html><body></body></html>");
+    const def = (k, v) => {
+      if (globalThis[k] === undefined) Object.defineProperty(globalThis, k, { value: v, configurable: true, writable: true });
+    };
+    for (const k of ["window", "document", "HTMLElement", "Node", "Element", "SVGElement", "CustomEvent", "Event"]) def(k, w[k]);
+    const store = {};
+    def("localStorage", { getItem: (k) => store[k] ?? null, setItem: (k, v) => (store[k] = String(v)), removeItem: (k) => delete store[k] });
+    def("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {} }));
+    def("requestAnimationFrame", () => 0);
+    def("cancelAnimationFrame", () => {});
+    def("getComputedStyle", () => ({ getPropertyValue: () => "" }));
+    def("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+    const { mountLessonDiagram } = await import("../src/diagrams/learnBind.js");
+    return (lesson) => {
+      if (!lesson.diagramId) return { html: "", cap: "" };
+      try {
+        const host = document.createElement("div");
+        let cap = "";
+        const d = mountLessonDiagram(host, lesson.diagramId, lesson);
+        d?.onCaption?.((c) => (cap = [c.who, c.fail].filter(Boolean).join(" — ")));
+        d?.update?.();
+        return { html: host.innerHTML, cap };
+      } catch (e) {
+        console.warn(`prerender: flow diagram ${lesson.diagramId} skipped (${e.message})`);
+        return { html: "", cap: "" };
+      }
+    };
+  } catch (e) {
+    console.warn(`prerender: flow diagrams skipped (${e.message})`);
+    return () => ({ html: "", cap: "" });
+  }
+}
+const renderFlow = await flowRenderer();
+const ALL_TRACKS = new Set(TRACKS.map((t) => t.id));
 
 function write(rel, html) {
   const out = path.join(dist, rel);
@@ -112,21 +184,30 @@ for (const [i, mod] of MODULES.entries()) {
   const next = MODULES[i + 1];
   const track = TRACKS.find((t) => t.id === mod.trackId);
   const title = `${mod.title} (Module ${mod.id}) · ${SITE_NAME}`;
-  const body = `${staticNav}
-  <main id="app-main" class="learn-layout prerendered">
-    <nav class="mod-tree" aria-label="${escAttr(track.title)} modules"><a class="mod-item catalog-link" href="/learn/">All tracks</a>
-      ${track.modules.map((m) => `<a class="mod-item${m.id === mod.id ? " active" : ""}" href="/learn/${m.id}/">${m.id} · ${escAttr(m.title)}</a>`).join("\n      ")}
-    </nav>
-    <section class="learn-view">
-      <div class="module-header"><span class="badge">Module ${mod.id}</span><span class="layer-badge">${mod.mins} min · ${escAttr(mod.trackTitle)}</span>
-        <p class="module-meta"><span>Applies to: Android 15 (AOSP)</span>${modified ? `<span>· Last updated <time datetime="${modified}">${modified}</time></span>` : ""}</p></div>
-      <article class="md-body">${renderMd(md)}</article>
-      <nav class="module-nav" aria-label="Previous and next module">
-        ${prev ? `<a class="btn-ghost" href="/learn/${prev.id}/">← ${escAttr(prev.title)}</a>` : "<span></span>"}
-        ${next ? `<a class="btn-ghost" href="/learn/${next.id}/">${escAttr(next.title)} →</a>` : "<span></span>"}
-      </nav>
-    </section>
-  </main>`;
+  const anchored = anchorHeadings(enhanceModuleHtml(renderMd(md)), (sec) => `#${sec}`);
+  const tocHtml = anchored.tocHtml;
+  // Same wrapper the app adds (lib/markdown.js wrapTables), so tables do not move on boot.
+  const articleHtml = anchored.html.replace(/<table>/g, '<div class="table-wrap" tabindex="0"><table>').replace(/<\/table>/g, "</table></div>");
+  const flow = renderFlow(getLesson(mod.id));
+  const body = staticLinks(
+    shellHtml({
+      page: "learn",
+      mainHtml: learnPageHtml({
+        mod,
+        prev,
+        next,
+        isDone: false,
+        lesson: getLesson(mod.id),
+        updatedIso: modified,
+        href: cleanHref,
+        tree: treeHtml({ active: mod.id, open: ALL_TRACKS, done: new Set(), href: cleanHref }),
+        tocHtml,
+        articleHtml,
+        flowHtml: flow.html,
+        flowCap: flow.cap,
+      }),
+    }),
+  );
   const ld = [
     {
       "@context": "https://schema.org",
@@ -155,7 +236,7 @@ for (const [i, mod] of MODULES.entries()) {
       ],
     },
   ];
-  write(`learn/${mod.id}/index.html`, page({ title, description, canonical, modified, ld, body }));
+  write(`learn/${mod.id}/index.html`, page({ title, description, canonical, modified, ld, body, key: `learn/${mod.id}` }));
   urls.push({ loc: canonical, lastmod: modified });
 }
 
@@ -175,8 +256,8 @@ const courseLd = {
   offers: { "@type": "Offer", price: 0, priceCurrency: "USD", category: "Free" },
   hasPart: MODULES.map((m) => ({ "@type": "TechArticle", name: m.title, url: `${SITE}/learn/${m.id}/` })),
 };
-const indexBody = `${staticNav}
-  <main id="app-main" class="wrap learn-index prerendered">
+const indexBody = staticLinks(shellHtml({ page: "learn", mainHtml: `
+  <div class="wrap learn-index prerendered">
     <h1>Learn</h1>
     <p class="lede">Each module is a written lesson on the Android audio stack (Android 15, AIDL HAL, AAOS).</p>
     ${TRACKS.map(
@@ -184,7 +265,7 @@ const indexBody = `${staticNav}
       ${t.modules.map((m) => `<li><a href="/learn/${m.id}/"><span class="mod-id">${m.id}</span> ${escAttr(m.title)}</a> <span class="mins">${m.mins} min</span></li>`).join("\n      ")}
     </ol></section>`,
     ).join("\n    ")}
-  </main>`;
+  </div>` }));
 write(
   "learn/index.html",
   page({
@@ -198,8 +279,17 @@ write(
 );
 urls.splice(1, 0, { loc: `${SITE}/learn/`, lastmod: urls[0].lastmod });
 
-// Root shell also advertises the course (same Course entity).
-fs.writeFileSync(path.join(dist, "index.html"), shell.replace(/<\/head>/, `    ${jsonLd(courseLd)}\n  </head>`));
+// Home: prerendered home page; also advertises the course (same Course entity).
+// Hash links stay as-is here (this document is the SPA shell for /#/… routes).
+fs.writeFileSync(
+  path.join(dist, "index.html"),
+  shell
+    .replace(/<\/head>/, `    ${jsonLd(courseLd)}\n  </head>`)
+    .replace(
+      /<div id="app"><\/div>/,
+      `<div id="app" data-prerendered="home">${shellHtml({ page: "home", mainHtml: homeHtml() })}</div>${hashGuard("home")}`,
+    ),
+);
 
 // sitemap.xml
 const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
@@ -215,4 +305,21 @@ fs.writeFileSync(
   `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Page not found · ${SITE_NAME}</title><meta name="robots" content="noindex"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><style>body{font-family:system-ui,sans-serif;background:#09090f;color:#f1f5f9;display:grid;place-items:center;min-height:100vh;margin:0}a{color:#00e5ff}main{max-width:36rem;padding:24px}</style></head><body><main><h1>Page not found</h1><p>That page doesn't exist. Try the <a href="/learn/">course index</a> or the <a href="/">home page</a>.</p><p><a href="${REPO}/issues/new?title=Broken%20link">Report a broken link</a></p></main></body></html>`,
 );
 
-console.log(`prerendered ${MODULES.length} module pages + /learn/, sitemap with ${urls.length} URLs, 404.html`);
+// Critical CSS: inline the rules each page's markup uses, load the full sheet async.
+const beasties = new Beasties({
+  path: dist,
+  publicPath: "/",
+  preload: "media",
+  pruneSource: false,
+  reduceInlineStyles: false,
+  mergeStylesheets: false,
+  fonts: false,
+  logLevel: "warn",
+});
+const htmlFiles = ["index.html", "learn/index.html", ...MODULES.map((m) => `learn/${m.id}/index.html`)];
+for (const rel of htmlFiles) {
+  const file = path.join(dist, rel);
+  fs.writeFileSync(file, await beasties.process(fs.readFileSync(file, "utf8")));
+}
+
+console.log(`prerendered home + ${MODULES.length} module pages + /learn/, critical CSS inlined in ${htmlFiles.length} pages, sitemap with ${urls.length} URLs, 404.html`);

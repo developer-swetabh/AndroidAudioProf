@@ -17,7 +17,7 @@ Open the URL Vite prints (default http://localhost:5173).
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Vite dev server |
-| `npm run build` | `vite build` + `scripts/prerender.mjs` (static `/learn/<id>/` pages, `sitemap.xml`, `404.html`) |
+| `npm run build` | `vite build` + `scripts/prerender.mjs` (static home and `/learn/<id>/` pages, critical CSS, `sitemap.xml`, `404.html`) |
 | `npm run sync` | Copy repo `modules/` and `workbook/` into `public/curriculum/` and refresh `src/content/updated.json` from git dates |
 | `npm run sync:check` | Fail if `public/curriculum/` is out of date with the repo sources |
 
@@ -44,6 +44,14 @@ Run `npm run sync` after editing anything in `../modules` or `../workbook`, and 
 
 Content lives in `src/content/` (`catalog.js`, `terms.js`, `comparisons.js`). Long-form teaching lives in `public/curriculum/`, which is a generated copy of repo `modules/` (do not edit it by hand).
 
+## Performance notes
+
+- Home and every `/learn/<id>/` page are prerendered from the same pure markup functions the app uses (`src/shellMarkup.js`, `src/pages/homeMarkup.js`, `src/pages/learnMarkup.js`). On boot the app wires up the static DOM instead of re-rendering it. Keep those functions free of DOM access.
+- Lesson flow diagrams are rendered at build time with linkedom; if one throws, the slot stays empty and the app fills it on boot.
+- Beasties inlines each page's critical CSS; the full stylesheet loads without blocking.
+- Each section (`src/pages/*`) is its own chunk, loaded when first opened. Mermaid loads only when a diagram scrolls near the viewport.
+- Fonts are self-hosted in `public/fonts/` (see the README there). No third-party requests.
+
 ## Deployment
 
-Vercel, project root `portal/`. `vercel.json` sets trailing slashes, immutable caching for `/assets/*`, and `X-Robots-Tag: noindex` on `/curriculum/*` (raw markdown the app fetches; the prerendered `/learn/` pages are the indexable copies).
+Vercel, project root `portal/`. `vercel.json` sets trailing slashes, immutable caching for `/assets/*` and `/fonts/*`, and `X-Robots-Tag: noindex` on `/curriculum/*` (raw markdown the app fetches; the prerendered `/learn/` pages are the indexable copies).

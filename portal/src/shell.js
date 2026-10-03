@@ -1,24 +1,30 @@
 import { $, $$, copy, go, parseHash } from "./lib/dom.js";
 import { load, save } from "./lib/storage.js";
 import { MODULES } from "./content/catalog.js";
-import { TERMS } from "./content/terms.js";
-import { DUMP_SCENARIOS } from "./content/dumpLab.js";
-import { RCA_CASES } from "./content/rcaCases.js";
-import { GATES } from "./content/gates.js";
-import { rethemeMermaid } from "./lib/markdown.js";
-import { XML_FILES } from "./content/xmlFiles.js";
-import { LIFE_SCENES } from "./content/lifecycle.js";
+import { NAV, shellHtml } from "./shellMarkup.js";
 
-export const NAV = [
-  { id: "home", label: "Home" },
-  { id: "fundamentals", label: "Fundamentals" },
-  { id: "architecture", label: "Architecture" },
-  { id: "learn", label: "Learn" },
-  { id: "debug", label: "Debug" },
-  { id: "workbench", label: "Workbench" },
-  { id: "glossary", label: "Glossary" },
-  { id: "progression", label: "Progress" },
-];
+export { NAV };
+
+/** Search data is only needed once the palette opens; keep it out of the boot bundle. */
+let paletteData = null;
+function loadPaletteData() {
+  paletteData ??= Promise.all([
+    import("./content/terms.js"),
+    import("./content/dumpLab.js"),
+    import("./content/rcaCases.js"),
+    import("./content/gates.js"),
+    import("./content/xmlFiles.js"),
+    import("./content/lifecycle.js"),
+  ]).then(([t, d, r, g, x, l]) => ({
+    TERMS: t.TERMS,
+    DUMP_SCENARIOS: d.DUMP_SCENARIOS,
+    RCA_CASES: r.RCA_CASES,
+    GATES: g.GATES,
+    XML_FILES: x.XML_FILES,
+    LIFE_SCENES: l.LIFE_SCENES,
+  }));
+  return paletteData;
+}
 
 const COMMANDS = `adb shell dumpsys media.audio_flinger
 adb shell dumpsys media.audio_policy
@@ -28,6 +34,19 @@ adb shell cat /proc/asound/pcm
 adb logcat -b main,system,crash -v threadtime`;
 
 let mounted = false;
+
+// Set by scripts/prerender.mjs on static entry pages: <div id="app" data-prerendered="home|learn/06">.
+let prerendered = document.getElementById("app")?.dataset.prerendered || "";
+// The static shell (banner, nav, footer) is reused as-is on boot instead of re-rendered,
+// so the first-painted nodes stay on screen (no flash, no new LCP candidate).
+const staticShell = Boolean(prerendered) && Boolean(document.querySelector("#app .app-nav"));
+
+/** True once, on boot, if the static HTML already shows `key`. */
+export function consumePrerendered(key) {
+  const hit = prerendered === key;
+  prerendered = "";
+  return hit;
+}
 
 /** Saved choice wins; otherwise follow the OS setting on first visit. */
 export function currentTheme() {
@@ -51,43 +70,16 @@ export function mountShell() {
   if (mounted) return;
   mounted = true;
   const app = $("#app");
-  app.innerHTML = `
-    <div class="version-banner" role="note">
-      <span>Course targets <strong>Android 15</strong> · AIDL Core HAL · AAOS car config v4</span>
-      <span class="banner-sep" aria-hidden="true">·</span>
-      <a href="#/learn/23">Other versions / HIDL? Classification guide →</a>
-    </div>
-    <header class="app-nav">
-      <a class="brand" href="#/home" aria-label="Home">
-        <span class="brand-mark" aria-hidden="true"></span>
-        <span class="brand-text">Audio Architect</span>
-      </a>
-      <button class="icon-btn menu-btn" id="menuBtn" type="button" aria-label="Open menu" aria-expanded="false">☰</button>
-      <nav class="nav-links" id="navLinks" aria-label="Primary"></nav>
-      <div class="nav-actions">
-        <button class="icon-btn" id="searchBtn" type="button" aria-label="Search (Ctrl+K)">⌘K</button>
-        <button class="icon-btn" id="themeBtn" type="button" aria-label="Switch to light theme" aria-pressed="false">☀</button>
-        <button class="icon-btn" id="cmdBtn" type="button" aria-label="Quick commands">$_</button>
-      </div>
-    </header>
-    <main id="app-main" class="page" tabindex="-1"></main>
-    <footer class="site-sig" role="contentinfo">
-      Created by <strong>Swetabh Suman</strong> ·
-      <a href="https://github.com/developer-swetabh/AndroidAudioProf" rel="noopener">Source on GitHub</a> ·
-      <a href="https://github.com/developer-swetabh/AndroidAudioProf/issues/new?title=Erratum:%20" rel="noopener">Report an error</a> ·
-      <a href="https://github.com/developer-swetabh/AndroidAudioProf/blob/main/LICENSE" rel="noopener">MIT License</a>
-    </footer>
-    <div class="cmd-dock" id="dock"></div>
-  `;
+  if (!staticShell) app.innerHTML = shellHtml({ page: parseHash().page });
 
-  $("#navLinks").innerHTML = NAV.map(
-    (n) => `<a href="#/${n.id}" data-nav="${n.id}">${n.label}</a>`,
-  ).join("");
 
   $("#themeBtn").onclick = () => {
     save({ theme: currentTheme() === "dark" ? "light" : "dark" });
     applyTheme();
-    rethemeMermaid().catch(() => {});
+    // Only re-theme diagrams if the markdown chunk is already in use.
+    if (document.querySelector(".mermaid-live[data-src]")) {
+      import("./lib/markdown.js").then((m) => m.rethemeMermaid()).catch(() => {});
+    }
   };
   $("#searchBtn").onclick = openPalette;
   $("#cmdBtn").onclick = toggleCmds;
@@ -110,15 +102,18 @@ export function syncNav() {
   });
 }
 
-export function setMain(html) {
+export function setMain(html, { animate = true } = {}) {
   const main = $("#app-main");
-  main.classList.remove("page");
   main.innerHTML = html;
+  if (!animate) return;
+  main.classList.remove("page");
   void main.offsetWidth;
   main.classList.add("page");
 }
 
-export function openPalette() {
+export async function openPalette() {
+  closeOverlays();
+  const { TERMS, DUMP_SCENARIOS, RCA_CASES, GATES, XML_FILES, LIFE_SCENES } = await loadPaletteData();
   closeOverlays();
   const items = [
     ...NAV.map((n) => ({ t: `Go to ${n.label}`, h: n.id, k: "page" })),
