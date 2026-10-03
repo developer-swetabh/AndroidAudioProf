@@ -12,7 +12,7 @@ Imagine a relay race.
 App hands a baton (PCM + meaning)
   → Framework decides the lane (device / zone / volume)
   → AudioFlinger runs the lap (mix + clock)
-  → HAL opens the track on the hardware abstraction
+  → HAL carries the stream to the hardware (start/burst on a stream opened with the output)
   → ALSA/ASoC moves samples with DMA
   → DSP processes
   → Codec converts
@@ -37,15 +37,15 @@ Use this as the default investigation spine. Corrected from the common “straig
 ```text
 Application
    ↓
-AudioTrack / Media codec path
+AudioTrack / Media codec path ──────────────► AudioService / CarAudioService
+   │  (createTrack + PCM: straight to             focus, volume, devices, zones
+   │   AudioFlinger, not via AudioService)        (CarAudioService registers dynamic mixes
+   ↓                                               and user/zone affinities at boot /
+AudioFlinger ◄──── peers ────► AudioPolicyService  zone change — not per track)
+   ↑  mix, threads,              device / mix / volume decision
+   │  write to HAL               (asked by AudioFlinger in createTrack)
    ↓
-AudioService / CarAudioService          ← policy meaning, focus, zones
-   ↓
-AudioPolicyService                      ← device / mix / volume decision
-   ↓
-AudioFlinger                            ← mix, threads, write to HAL
-   ↓
-Audio HAL                               ← open/start/write stream
+Audio HAL                               ← stream opened with the output; start/burst/standby
    ↓
 Vendor middleware (optional)            ← PAL / AudioReach / OEM
    ↓
@@ -211,20 +211,24 @@ At every “No”, you stop going down and start gathering **layer-local** evide
 You do not need to read all of this yet. You need to know *where ownership is implemented*.
 
 ```text
+Per-track playback path:
 App
   android.media.AudioTrack / MediaPlayer / ExoPlayer
-      ↓ Binder
-AudioService
-  frameworks/base/services/core/java/com/android/server/audio/AudioService.java
-      ↓ (AAOS) Binder
-CarAudioService
-  packages/services/Car/service/src/com/android/car/audio/CarAudioService.java
-      ↓
-AudioPolicyService / AudioPolicyManager
-  frameworks/av/services/audiopolicy/
-      ↓
+      ↓ Binder IAudioFlinger.createTrack (PCM then via shared memory)
 AudioFlinger
   frameworks/av/services/audioflinger/
+      ↔ asks Policy (getOutputForAttr / startOutput)
+AudioPolicyService / AudioPolicyManager
+  frameworks/av/services/audiopolicy/
+
+Side channel (focus, volume, devices; AAOS mixes registered at boot / zone change):
+AudioService
+  frameworks/base/services/core/java/com/android/server/audio/AudioService.java
+CarAudioService (AAOS)
+  packages/services/Car/service/src/com/android/car/audio/CarAudioService.java
+
+Below AudioFlinger:
+AudioFlinger
       ↓ libaudiohal
 Audio HAL
   hardware/interfaces/audio/          (HIDL or AIDL)
@@ -314,9 +318,9 @@ Answer in writing:
 Then compare to this reasoning (read only after you write):
 
 - Symptom layer: speaker / user.
-- Expected: Policy should switch the output device from A2DP/LE back to speaker and AudioFlinger should reopen or retask the output.
+- Expected: Policy should switch media from the A2DP/LE output back to the (already open) speaker output, moving the tracks there and installing the speaker patch.
 - First dumps: `media.audio_policy` (selected device) and `media.audio_flinger` (thread device + track active). If the track is ACTIVE on `AUDIO_DEVICE_OUT_SPEAKER`, last-known-good is framework and you go to HAL/ALSA.
-- Hypotheses: (A) Policy still thinks A2DP is available. (B) Policy switched but HAL failed to reopen speaker PCM. Those are different owners.
+- Hypotheses: (A) Policy still thinks A2DP is available. (B) Policy switched but the speaker stream failed to leave standby (or the vendor HAL failed to re-acquire the speaker PCM). Those are different owners.
 
 ## Key Takeaways
 

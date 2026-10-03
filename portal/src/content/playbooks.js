@@ -77,7 +77,7 @@ export const PLAYBOOKS = [
     start: "route-ok",
     expected: [
       "getOutputForAttr already chose the system bus",
-      "If thread STANDBY, start must openOutputStream + Command.start before the WAV ends",
+      "If thread STANDBY, standby exit (Command.start + vendor PCM/graph/amp bring-up) must finish before the WAV ends",
     ],
   },
   {
@@ -218,7 +218,7 @@ export const NODES = {
   ),
   "standby-q": ask(
     "Is the PlaybackThread in software standby?",
-    "Idle tore down the HAL stream. First start must openOutputStream.",
+    "Idle put the HAL stream in STANDBY (it stays open; the vendor may have released the PCM). First start pays Command.start plus vendor bring-up.",
     "flinger/standby-chime",
     "software standby=yes plus StreamDescriptor STANDBY.",
     "flinger",
@@ -405,7 +405,7 @@ export const VERDICTS = {
     {
       symptom: "Route is right; first sound missing or late.",
       immediate: "PlaybackThread software standby; StreamDescriptor STANDBY.",
-      root: "Idle tore down the HAL stream; bring-up longer than the one-shot.",
+      root: "Idle put the output in STANDBY; standby exit (vendor PCM/graph/amp bring-up) longer than the one-shot.",
       contribute: "Not an XRUN. Not a wrong bus.",
       fix: "Keep the output warm, or extend the WAV, or pre-start. Debug power, not XML.",
     },
@@ -531,7 +531,7 @@ export const VERDICTS = {
     {
       symptom: "First chime missing after idle; second heard.",
       immediate: "Descriptor STANDBY until after the WAV ended.",
-      root: "STANDBY teardown; Command.start/burst late vs one-shot length.",
+      root: "STANDBY exit; Command.start/burst + vendor bring-up late vs one-shot length.",
       contribute: "Not XRUN (counter). Not wrong bus (route already OK).",
       fix: "Warm the output, pre-roll, or don’t idle-close that bus.",
     },

@@ -11,7 +11,7 @@ const WALKS = {
       { name: "AudioTrack::start", file: "frameworks/av/media/libaudioclient/AudioTrack.cpp", note: "IAudioTrack Binder to audioserver." },
       { name: "IAudioFlinger.createTrack", file: "frameworks/av/services/audioflinger/AudioFlinger.cpp", note: "Construction already routed. App does not Binder to Policy." },
       { name: "getOutputForAttr", file: "frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp", note: "Flinger asks Policy. Peer, not a stack." },
-      { name: "PlaybackThread / Track::start", file: "frameworks/av/services/audioflinger/Threads.cpp", note: "If STANDBY, open HAL stream." },
+      { name: "PlaybackThread / Track::start", file: "frameworks/av/services/audioflinger/Threads.cpp", note: "If STANDBY, the next write sends Command.start/burst on the already open HAL stream." },
       { name: "IModule.openOutputStream", file: "hardware/interfaces/audio/aidl/android/hardware/audio/core/IModule.aidl", note: "AIDL. HIDL IStreamOut.write() is history." },
       { name: "Command.burst", file: "hardware/interfaces/audio/aidl/android/hardware/audio/core/StreamDescriptor.aidl", note: "Write audio.fmq, then burst. HAL must empty the FMQ." },
     ],

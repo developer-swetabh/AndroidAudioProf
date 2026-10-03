@@ -158,16 +158,18 @@ Workbench case “profile lie” is this table wearing a Policy hat: advertised 
 
 If FastMixer runs ~2–5 ms periods, that is IRQ pressure. Media deep-buffer might use a large period × a few counts for power. Putting a chime on deep-buffer makes the first word late. That is Module 15 — the units start here.
 
-### 5. Four PlaybackThreads (Direct does **not** bypass AudioFlinger)
+### 5. Three PlaybackThread types + the FastMixer helper (Direct does **not** bypass AudioFlinger)
 
 Interactive: `#/fundamentals` board 5.
 
-Every normal playback still does this:
+Every normal (non-MMAP) playback still does this:
 
 ```text
 App (AudioTrack / MediaPlayer / AAudio)
     → AudioPolicy   (picks device + flags)     ← always
-    → AudioFlinger PlaybackThread              ← always, inside audioserver
+    → AudioFlinger PlaybackThread              ← inside audioserver (AAudio MMAP exclusive
+                                                  streams skip the mix: the app writes a
+                                                  buffer shared with the HAL/DSP)
     → HAL (AIDL Command.burst on Android 15)
     → pins / HDMI / DSP
 ```
@@ -177,9 +179,11 @@ What changes is **which PlaybackThread** Policy asked Flinger to use — and whe
 | Thread | Still in AudioFlinger? | Mixes? | What the app writes | Who unpacks an MP3 | Nav on *this* output |
 | --- | --- | --- | --- | --- | --- |
 | **MixerThread** | Yes | Yes, many tracks | PCM samples | Usually MediaCodec *before* this thread | Can mix / software-duck |
-| **FastMixer** | Yes (often *beside* MixerThread) | Yes, few fast tracks | PCM samples | Already PCM | Only if nav is also fast |
+| FastMixer *(helper, not a PlaybackThread)* | Yes — a `FastThread` owned by a MixerThread | Yes, few fast tracks | PCM samples | Already PCM | Only if nav is also fast |
 | **DirectOutputThread** | Yes | No — one track | Exclusive PCM **or** compressed passthrough | Sink (TV) if passthrough | Impossible |
 | **OffloadThread** | Yes | No — one track | Compressed frames | DSP | Impossible |
+
+Other thread classes you will see in `dumpsys` (Module 06): `SpatializerThread` and `BitPerfectThread` (MixerThread variants), `DuplicatingThread`, `MmapPlaybackThread`, and on the capture side `RecordThread` (+ FastCapture), `DirectRecordThread`, `MmapCaptureThread`.
 
 **Junior picture**
 

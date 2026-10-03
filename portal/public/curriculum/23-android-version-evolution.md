@@ -75,8 +75,8 @@ AAOS still needs `car_audio_configuration.xml` on top unless a product moves vol
 | --- | --- |
 | 10 | `car_audio_configuration.xml` replaces `car_volumes_groups.xml` and `IAudioControl.getBusForContext` |
 | 11 | `audioZoneId`, `occupantZoneId`; AudioControl 2.0 HAL focus; delayable focus; nav-during-call setting; system usages |
-| 14 | Config v3: OEM contexts, non-primary multi `zoneConfig`, OEM plugin focus, CAP hooks (`useCoreAudioVolume` / `useCoreAudioRouting`) |
-| 15 | Config v4 + `car_audio_fade_configuration.xml`; system-enforced fade (`audioUseFadeManagerConfiguration`) |
+| 14 | Config v3: OEM contexts, non-primary multi `zoneConfig`, OEM plugin focus, CAP hooks (`audioUseCoreVolume` / `audioUseCoreRouting`) |
+| 15 | Config v4: `car_audio_fade_configuration.xml` + `applyFadeConfigs` (system-enforced fade, `audioUseFadeManagerConfiguration`) and `activationVolumeConfigs` (min/max activation volume, `audioUseMinMaxActivationVolume`) |
 
 Forward compatibility: old XML may run on new AAOS until you use new tags. Using new tags on an old version throws at `car_service` start.
 

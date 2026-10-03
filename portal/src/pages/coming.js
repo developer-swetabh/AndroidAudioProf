@@ -6,7 +6,7 @@ export const COMING = {
     phase: 5,
     kicker: "Guided diagnostic engine",
     title: "Debug",
-    lede: "Playbooks as a real tree with service-correct dump snippets. Not a second copy of the curriculum.",
+    lede: "Playbooks as a decision tree with service-correct dump snippets.",
     now: [
       { href: "#/learn/19", label: "Module 19 · Debugging methodology" },
       { href: "#/learn/20", label: "Module 20 · Logs, dumps, traces" },
@@ -23,14 +23,14 @@ export const COMING = {
     phase: 6,
     kicker: "Dump & RCA labs",
     title: "Dump and RCA labs",
-    lede: "Live on Workbench. Service × scenario is required. RCA cards are workbook 01–08, not a row of selects.",
+    lede: "Pick a service and a scenario to read a dump; RCA cards follow workbook cases 01–08.",
     now: [
       { href: "#/workbench/dump", label: "Dump lab" },
       { href: "#/workbench/rca", label: "RCA lab" },
       { href: "#/workbench", label: "Calculator" },
     ],
     boards: [
-      "Dump lab: service × scenario; empty pair ≠ Flinger stub",
+      "Dump lab: service × scenario",
       "RCA lab: labeled evidence vs workbook 01–08",
     ],
   },
@@ -38,7 +38,7 @@ export const COMING = {
     phase: 7,
     kicker: "Engineering ladder",
     title: "Progress",
-    lede: "Live. Gates A–H are demonstrations, not rereads. Rank per track.",
+    lede: "Gates A–H are demonstrations, not rereads. Rank yourself per track.",
     now: [
       { href: "#/progression", label: "Progression" },
       { href: "#/learn/24", label: "Module 24 · Junior to architect" },
@@ -61,18 +61,17 @@ export function pageComing(id) {
     <div class="coming">
       <div class="coming-inner">
         <div class="coming-kicker">
-          <span class="phase-chip">Phase ${spec.phase}</span>
           <span class="coming-kicker-text">${esc(spec.kicker)}</span>
         </div>
         <h1>${esc(spec.title)}</h1>
         <p class="lede">${esc(spec.lede)}</p>
         <div class="coming-grid">
           <section class="card coming-card">
-            <h2>What will ship</h2>
+            <h2>What it covers</h2>
             <ul>${spec.boards.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>
           </section>
           <section class="card coming-card">
-            <h2>Use this until then</h2>
+            <h2>Related reading</h2>
             <ul class="coming-links">${spec.now.map((n) => `<li><a href="${n.href}">${esc(n.label)}</a></li>`).join("")}</ul>
           </section>
         </div>

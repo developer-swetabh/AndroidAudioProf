@@ -43,9 +43,9 @@ export const BUS_STEPS = [
   },
   {
     id: "hal",
-    title: "openOutputStream(address)",
+    title: "HAL stream for that address",
     who: "AIDL IModule (vendor)",
-    line: "Profiles must match what the port advertised. car XML does not program TDM slots, mixer_paths, or PAL graphs.",
+    line: "Opened once via IModule.openOutputStream when Policy opens the bus output at boot; standby/start after that. Profiles must match what the port advertised. car XML does not program TDM slots, mixer_paths, or PAL graphs.",
   },
 ];
 
@@ -172,7 +172,7 @@ export const XML_FILES = [
     path: "vendor/etc/ (often with includes for BT/USB/r_submix)",
     example: "device/generic/car/emulator/audio/audio_policy_configuration.xml",
     process: "vendor HAL converter (AIDL) · historically AudioPolicyManager (HIDL)",
-    parser: "Android 15: IModule.getAudioPorts / IConfig. Default AIDL HAL may convert this XML internally.",
+    parser: "Android 15: IModule.getAudioPorts / IConfig, queried by AudioFlinger libaudiohal and handed to APM. Default AIDL HAL may convert this XML internally.",
     uses: [
       "Device ports: type + address (bus0_media_out must exist as a port)",
       "Mix ports and attached profiles: format / rate / channel admission",
@@ -180,7 +180,7 @@ export const XML_FILES = [
       "AAOS official rule: every address in car XML must be defined here (or advertised as a HAL port)",
     ],
     not: [
-      "The Android 15 sentence is not “APM parses this XML.” APM reads IModule/IConfig. Ask dumpsys media.audio_policy what actually booted.",
+      "The Android 15 sentence is not “APM parses this XML.” APM gets IModule/IConfig data via AudioFlinger/libaudiohal. Ask dumpsys media.audio_policy what actually booted.",
       "Does not map CarAudioContext. That is car_audio_configuration.xml + dynamic mixes.",
       "Does not program TDM slots or mixer_paths kcontrols.",
       "AVAILABLE on a port is not a live Flinger thread.",
@@ -223,10 +223,10 @@ export const XML_FILES = [
     ],
     not: [
       "Not the AAOS cabin knob. Volume groups live in car_audio_configuration.xml.",
-      "If config_useFixedVolume=true, Flinger stays at 1.0; HAL/DSP applies the group index. Editing these tables will not move the amp.",
+      "If config_useFixedVolume=true, Flinger stays at 1.0; CarAudioService turns the group index into millibels and calls setAudioPortGain → IModule.setAudioPortConfig. Editing these tables will not move the amp.",
       "CAP volume: group name in car XML must match the engine; useFixedVolume must be false.",
     ],
-    join: "Group index (CarAudioService dump) vs Flinger track vol vs HAL gain.",
+    join: "Group index (CarAudioService dump) vs Flinger track vol vs HAL port gain (mB).",
     dump: "adb shell dumpsys media.audio_policy | grep -i volume",
     dumpAlso: "adb shell dumpsys car_service --services CarAudioService",
     flags: ["config_useFixedVolume (frameworks/base, not the car XML)"],
@@ -234,7 +234,7 @@ export const XML_FILES = [
     labs: [{ href: "#/learn/13", label: "Module 13 · volume groups" }],
     excerpt: `useFixedVolume=true  →  Flinger PCM at 1.0, HAL owns gain
 useFixedVolume=false →  software attenuation possible (fewer bits at the amp)
-CAP useCoreAudioVolume=true → engine volume names, not these stream tables
+CAP audioUseCoreVolume=true → engine volume names, not these stream tables
 ← not a file dump; this is the decision that makes these XMLs relevant or dead.`,
   },
   {
@@ -248,23 +248,23 @@ CAP useCoreAudioVolume=true → engine volume names, not these stream tables
     process: "audioserver",
     parser: "engineconfigurable (not enginedefault)",
     uses: [
-      "Product strategies (usage groups) when useCoreAudioRouting=true",
-      "Volume groups when useCoreAudioVolume=true — names must match car XML group name=",
+      "Product strategies (usage groups) when audioUseCoreRouting=true",
+      "Volume groups when audioUseCoreVolume=true — names must match car XML group name=",
       "OEM-defined car contexts (v3+) must match strategy names if both are used",
     ],
     not: [
       "Do not invent Android 15 CAP AIDL calls. REFERENCE_PLATFORM: full CAP-over-AIDL is 16+.",
-      "Off unless useCoreAudioVolume / useCoreAudioRouting. Many AAOS products still use dynamic mixes + default APM.",
+      "Off unless audioUseCoreVolume / audioUseCoreRouting. Many AAOS products still use dynamic mixes + default APM.",
       "Not mixer_paths. Not TDM.",
     ],
     join: "Strategy/volume name ↔ oemContext name ↔ car XML group name.",
     dump: "adb shell dumpsys media.audio_policy",
     dumpAlso: "Classify CAP flags before you read enginedefault",
-    flags: ["useCoreAudioRouting", "useCoreAudioVolume"],
+    flags: ["audioUseCoreRouting", "audioUseCoreVolume"],
     modules: ["07", "12", "23"],
     labs: [{ href: "#/learn/12", label: "Module 12 · CAP note" }],
-    excerpt: `useCoreAudioRouting=true  →  engine strategies, not only CarAudio Mix
-useCoreAudioVolume=true   →  engine volume groups; car XML group name= must match
+    excerpt: `audioUseCoreRouting=true  →  engine strategies, not only CarAudio Mix
+audioUseCoreVolume=true   →  engine volume groups; car XML group name= must match
 useFixedVolume must be false when using CAP volume
 ← teaching. Product file names vary; do not invent strategy IDs.`,
   },
@@ -281,7 +281,7 @@ useFixedVolume must be false when using CAP volume
     uses: [
       "audioUseDynamicRouting — master switch for AAOS mixes (must be true on this course)",
       "audioUseFadeManagerConfiguration — parse fade XML (default false)",
-      "useCoreAudioRouting / useCoreAudioVolume — CAP",
+      "audioUseCoreRouting / audioUseCoreVolume — CAP",
       "audioUseCarVolumeGroupMuting, audioUseHalDuckingSignals (IAudioControl#onDevicesToDuckChange)",
       "audioUseMinMaxActivationVolume — v4 activationVolumeConfigs",
       "config_oemCarService — OEM plugin (preinstalled, not a third-party APK)",
@@ -313,8 +313,8 @@ useFixedVolume must be false when using CAP volume
     version: "Android 15 effects HAL is AIDL IFactory. XML may still wrap a vendor factory.",
     path: "vendor/etc/audio_effects.xml (if present)",
     example: "frameworks/av/media/libeffects/data/audio_effects.xml",
-    process: "audioserver / vendor effects",
-    parser: "AIDL: IFactory. HIDL: audio_effects.xml + effectProxy (history).",
+    process: "effects HAL service (vendor.audio-effect-hal-aidl), driven by AudioFlinger EffectChain",
+    parser: "AIDL IFactory (AOSP default factory parses audio_effects_config.xml). HIDL-era audio_effects.xml is history; libeffectproxy is the HW/SW offload proxy.",
     uses: ["Effect libraries, pre/post processing attached to sessions or devices"],
     not: [
       "Do not start an Android 15 routing debug here unless the vendor’s IFactory still wraps XML.",

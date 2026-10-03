@@ -29,7 +29,7 @@ A water wheel:
 
 - **Beginner:** Android’s way to talk to ALSA.
 - **Engineer:** `external/tinyalsa` — `pcm_open`, `pcm_write`, `pcm_read`, mixer API.
-- **Expert:** Chosen because full `libasound` is GPL. It is intentionally smaller: fewer plugins, no fancy `.asoundrc` routing. Almost all Android HAL PCM I/O goes through it or a vendor equivalent.
+- **Expert:** Chosen because it is small and BSD-licensed; the full `libasound` (alsa-lib) is LGPL-2.1, which most HAL vendors avoid linking. It is intentionally smaller: fewer plugins, no fancy `.asoundrc` routing. Almost all Android HAL PCM I/O goes through it or a vendor equivalent.
 
 **XRUN**
 
@@ -246,12 +246,12 @@ Enabling ASoC/PCM dynamic debug is kernel-version and build specific. Do not inv
 | Debugging PulseAudio | Usually not present |
 | Matching only rate/channels | Periods cause the XRUNs |
 | Thinking RUNNING means analog unmute | Only means the PCM is running |
-| Using desktop `aplay` on GPL-sensitive products | TinyALSA is the Android-native tool |
+| Using desktop `aplay` (alsa-utils, GPL) on Android products | TinyALSA is the Android-native tool |
 | Assuming card 0 is always the SoC | USB audio can become card 0 after replug on some products |
 
 ## Practice
 
-HAL log: `pcm_open card=0 device=7 rate=48000 ch=2 format=S16_LE period=480 periods=4` succeeded. User hears a periodic glitch ~10 times per second.
+HAL log: `pcm_open card=0 device=7 rate=48000 ch=2 format=S16_LE period=480 periods=4` succeeded. User hears a rapid periodic glitch — a buzzy chop at roughly 100 times per second.
 
 1. What is `period_ms`?
 2. Why might glitches land at that rate?

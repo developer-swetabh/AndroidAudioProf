@@ -6,15 +6,49 @@
     <title>Android Audio Engineering Portal — AOSP &amp; AAOS</title>
     <meta
       name="description"
-      content="Interactive beginner-to-architect console for the Android audio stack: learn, debug, and diagnose from AudioTrack.play() to acoustic energy at the speaker. Android 15, AIDL HAL, AAOS."
+      content="Interactive beginner-to-architect course on the Android audio stack: AudioTrack, AudioFlinger, AudioPolicy, the AIDL audio HAL, ALSA/ASoC and AAOS car audio. Targets Android 15."
     />
+    <link rel="canonical" href="https://androidaudio.vercel.app/" />
+    <meta name="theme-color" content="#09090f" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Android Audio Engineering" />
+    <meta property="og:title" content="Android Audio Engineering Portal — AOSP &amp; AAOS" />
+    <meta property="og:description" content="Learn the Android audio stack from AudioTrack.play() to the speaker: AudioFlinger, AudioPolicy, AIDL HAL, ALSA and AAOS car audio." />
+    <meta property="og:url" content="https://androidaudio.vercel.app/" />
+    <meta property="og:image" content="https://androidaudio.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Android Audio Engineering Portal — AOSP &amp; AAOS" />
+    <meta name="twitter:description" content="Learn the Android audio stack from AudioTrack.play() to the speaker." />
+    <meta name="twitter:image" content="https://androidaudio.vercel.app/og-image.png" />
+    <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"WebSite","name":"Android Audio Engineering","url":"https://androidaudio.vercel.app/","inLanguage":"en","author":{"@type":"Person","name":"Swetabh Suman","url":"https://github.com/developer-swetabh"}}
+    </script>
+    <script>
+      // Apply the saved theme (or the OS preference) before first paint.
+      (function () {
+        var t;
+        try { t = (JSON.parse(localStorage.getItem("aaep.v1") || "{}") || {}).theme; } catch (e) {}
+        if (t !== "light" && t !== "dark") t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Non-render-blocking web fonts; system fonts are used until they arrive. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@300;400;600;700;800&display=swap"
       rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;600;700;800&display=swap"
+      media="print"
+      onload="this.media='all'"
     />
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;600;700;800&display=swap" />
+    </noscript>
   </head>
   <body>
     <a class="skip-link" href="#app-main">Skip to content</a>

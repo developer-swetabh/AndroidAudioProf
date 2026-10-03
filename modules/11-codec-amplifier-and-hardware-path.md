@@ -138,7 +138,7 @@ A wrong calibration can sound like distortion or low level on **one** channel. T
 
 Even though this layer is hardware:
 
-- HAL `setGain` / volume index may set amp gain
+- AAOS fixed volume: CarAudioService converts the group index to millibels and calls `setAudioPortGain()` → HAL `IModule.setAudioPortConfig(AudioGainConfig)`, which the vendor HAL may turn into an amp gain register write
 - AAOS volume groups often intend **hardware** attenuation
 - Mute from user / call / emergency may be a HAL parameter that hits these valves
 

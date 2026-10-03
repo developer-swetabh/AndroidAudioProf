@@ -188,9 +188,26 @@ Older XML can run on newer AAOS until you use new fields. Using new fields in an
 
 ### 6. CAP engine (Android 14+)
 
-Configurable Audio Policy engine can take over **volume and/or routing** (`useCoreAudioVolume`, `useCoreAudioRouting`). Then OEM-defined contexts must align with CAP product strategies. This is optional. Many products still use dynamic mixes + default APM.
+Configurable Audio Policy engine can take over **volume and/or routing** (`audioUseCoreVolume`, `audioUseCoreRouting`). Then OEM-defined contexts must align with CAP product strategies. This is optional. Many products still use dynamic mixes + default APM.
 
 If a bug is “strategy name mismatch,” ask whether CAP is enabled before reading `enginedefault`.
+
+### 7. CarService overlay flags (Android 15)
+
+These are the real resource names in `packages/services/Car/service/res/values/config.xml` (android15-release). Set them in a vendor RRO. A misspelled name is a silent no-op, so copy them exactly — the CAP documentation prose says “useCoreAudioVolume/Routing”, but the overlay booleans are `audioUseCore*`.
+
+```xml
+<!-- device/<oem>/<car>/overlay/packages/services/Car/service/res/values/config.xml -->
+<bool name="audioUseDynamicRouting">true</bool>          <!-- AOSP default: false -->
+<bool name="audioUseCoreVolume">false</bool>             <!-- CAP volume groups -->
+<bool name="audioUseCoreRouting">false</bool>            <!-- CAP product strategies -->
+<bool name="audioUseCarVolumeGroupMuting">true</bool>    <!-- per-group mute → IAudioControl.onDevicesToMuteChange -->
+<bool name="audioUseHalDuckingSignals">true</bool>       <!-- AOSP default: true → onDevicesToDuckChange -->
+<bool name="audioUseMinMaxActivationVolume">false</bool> <!-- v4 activationVolumeConfigs -->
+<bool name="audioUseFadeManagerConfiguration">false</bool> <!-- v4 fade -->
+```
+
+Other Android 15 audio flags in the same file: `audioUseIsolatedAudioFocusForDynamicDevices`, `audioUseCarVolumeGroupEvent`, `audioVolumeAdjustmentContextsVersion`, `audioPersistMasterMuteState`, `audioVolumeKeyEventTimeoutMs`, `audioEnableVolumeKeyEventsToDynamicDevices`. Always confirm defaults against your branch's `config.xml` and https://source.android.com/docs/automotive/audio/config-flags.
 
 ## Source-Code Path
 

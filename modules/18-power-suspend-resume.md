@@ -2,7 +2,7 @@
 
 ## Short Answer
 
-Audio power management is a **stack of independent sleepers**: Flinger standby, HAL close, ADSP collapse, DAI clocks, codec DAPM, amp enable, and system suspend. The most common field bug is **“works until idle/sleep.”** That sentence already tells you the owning class: a **bring-up race** on the way back, not a static routing typo.
+Audio power management is a **stack of independent sleepers**: Flinger standby, vendor HAL PCM release on standby, ADSP collapse, DAI clocks, codec DAPM, amp enable, and system suspend. The most common field bug is **“works until idle/sleep.”** That sentence already tells you the owning class: a **bring-up race** on the way back, not a static routing typo.
 
 ## Mental Model
 
@@ -21,7 +21,7 @@ In the morning everything must start **in order**. If the amp turns on before th
 **Standby (AudioFlinger/HAL)**
 
 - **Beginner:** Audio stops to save power when nothing plays.
-- **Engineer:** Output thread calls HAL `standby()`, often closing PCM and tearing graphs.
+- **Engineer:** Output thread puts the HAL stream in standby (AIDL `Command.standby`). The stream stays open; the vendor HAL often closes its ALSA PCM and tears down graphs behind it.
 - **Expert:** Per-output. Fast path may stay warm. Deep buffer goes cold. Time-to-first-sample is a product KPI.
 
 **System suspend**
@@ -137,7 +137,7 @@ AudioFlinger PlaybackThread standby paths
   frameworks/av/services/audioflinger/Threads.cpp
 
 HAL:
-  stream standby() / close
+  stream standby (AIDL Command.standby; stream stays open)
   vendor power helpers
 
 Kernel:
@@ -190,7 +190,7 @@ Healthy wake:
 
 ```text
 thread leaves standby
-HAL open/start
+HAL Command.start / first burst (vendor re-opens PCM/graph if it released them)
 clocks/DAPM/graph up
 first write after a documented ramp
 no I2C errors

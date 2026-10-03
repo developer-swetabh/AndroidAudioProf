@@ -47,9 +47,9 @@ export const LESSONS = {
     hops: [
       { short: "Java", layer: "app", mode: "control", line: "Java AudioTrack.Builder → JNI native_setup. createTrack is already a routing event — not play()." },
       { short: "start", layer: "app", mode: "control", line: "AudioTrack::start → IAudioTrack::start. Still the app process. No Policy Binder from the app." },
-      { short: "Flinger", layer: "flinger", mode: "control", line: "Track::start on the PlaybackThread. If the thread was STANDBY, Flinger will open the HAL stream." },
+      { short: "Flinger", layer: "flinger", mode: "control", line: "Track::start on the PlaybackThread. If the thread was STANDBY, the next write takes the already open HAL stream out of standby." },
       { short: "Policy", layer: "policy", mode: "control", line: "getOutputForAttr already ran during createTrack (peer). startOutput is ref-count / volume — not a new Binder from the app to Policy." },
-      { short: "burst", layer: "hal", mode: "both", line: "IModule.openOutputStream → Command.start → write audio.fmq → Command.burst." },
+      { short: "burst", layer: "hal", mode: "both", line: "Stream opened earlier (IModule.openOutputStream at output open). Now: Command.start if STANDBY → write audio.fmq → Command.burst." },
       { short: "vendor", layer: "hal", mode: "data", line: "Vendor HAL consumes the burst: TinyALSA pcm_write, or Qualcomm-like PAL/AGM IPC. Policy is not on this path." },
       { short: "PCM", layer: "alsa", mode: "data", line: "Kernel PCM ring. RUNNING + zeros is silence, not an XRUN." },
       { short: "ASoC", layer: "alsa", mode: "data", line: "ASoC FE binds to BE DAI. DMA feeds the serializer. TDM slots are not Policy objects." },

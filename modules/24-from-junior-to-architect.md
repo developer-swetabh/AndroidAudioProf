@@ -77,7 +77,7 @@ You refuse to invent PAL/ACDB names; you still write a vendor hypothesis.
 
 ### Gate G — AAOS
 
-You can read a v3 XML and predict Flinger addresses for two users.
+You can read a v4 `car_audio_configuration.xml` and predict Flinger addresses for two users.
 
 **Test:** explain cast vs mirror vs zone config switch.
 

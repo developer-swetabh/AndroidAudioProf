@@ -1,5 +1,7 @@
 # Case 07 — 3/10 no music after any source switch
 
+> **Illustrative:** the dumps and logs in this case are teaching reconstructions, not captures from a real device. Field names follow Android 15 AIDL + AAOS; exact `dumpsys` text varies by build.
+
 Real hardware. **Not** case 06 (overlap / fade / same bus). Focus looked healthy. The cabin still had no music after AA↔Radio↔USB switches, **3 times in 10**.
 
 This case exists so you do **not** invent a HAL or fade root cause from a 3/10 rate alone.

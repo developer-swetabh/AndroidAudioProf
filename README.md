@@ -2,6 +2,10 @@
 
 A teaching curriculum for becoming an independent **AOSP / AAOS audio engineer**.
 
+**Read it online:** https://androidaudio.vercel.app/ — the same modules, rendered with interactive diagrams, a debugging workbench and a lifecycle studio.
+
+> **Version note:** the course currently targets **Android 15** (AOSP `android15-release`, AIDL audio HAL, AAOS car audio config v4). Features that only exist in Android 16 or later are labelled as such.
+
 **Reference platform for every module:** **Android 15+** with an **AIDL Audio HAL** (`android.hardware.audio.core`) and, for automotive examples, **AAOS 15** with `car_audio_configuration.xml` **version 4** plus optional fade configuration. HIDL and older car XML versions are history, not the default. See [REFERENCE_PLATFORM.md](REFERENCE_PLATFORM.md).
 
 This is not a dump of facts. Each module trains the same professional habit:
@@ -53,7 +57,7 @@ A junior or mid-level Android engineer who is actively building expertise in:
 | 11. Growth | Version evolution, career path, glossary | [23](modules/23-android-version-evolution.md), [24](modules/24-from-junior-to-architect.md), [25](modules/25-glossary-and-comparisons.md) |
 | 12. Lab | Capture dumps; annotate Android 15 cases | [labs/](labs/README.md), [workbook/](workbook/README.md) |
 
-**Interactive portal:** [portal/README.md](portal/README.md) — `cd portal && npm install && npm run dev`
+**Interactive portal:** https://androidaudio.vercel.app/ · source and local setup in [portal/README.md](portal/README.md) (`cd portal && npm install && npm run dev`)
 
 Start at [modules/00-how-to-use-this-course.md](modules/00-how-to-use-this-course.md).
 
@@ -82,8 +86,11 @@ Native client   (libaudioclient: AudioTrack.cpp / AudioRecord.cpp)
     v                           v
 AudioPolicyService         AudioFlinger
 (decision: device,          (execution: mix, clock,
- strategy, volume,           threads, HAL I/O)
- focus query path)
+ strategy, volume)           threads, HAL I/O)
+
+  The native client calls AudioFlinger (createTrack); AudioFlinger asks
+  AudioPolicyService (getOutputForAttr). Focus never reaches either: it lives
+  in AudioService (MediaFocusControl) and, on AAOS, CarAudioFocus.
     |                           |
     +-------------+-------------+
                   |
@@ -147,7 +154,7 @@ AudioAttributes / Usage
   AIDL Audio HAL (IModule + StreamDescriptor) + hardware path
 ```
 
-On Android 15+, Audio Policy Manager **queries topology from the AIDL HAL** (`IModule.getAudioPorts` / `getAudioRoutes`, `IConfig`) instead of treating a vendor XML file as the only contract. A default HAL may still *implement* `IConfig` by converting leftover XML internally. You debug the **AIDL objects**, not the file, unless you are looking at that converter.
+On Android 15+, Audio Policy Manager **gets its topology from the AIDL HAL** (`IModule.getAudioPorts` / `getAudioRoutes`, `IConfig`) — queried by AudioFlinger's libaudiohal and handed to APM — instead of treating a vendor XML file as the only contract. A default HAL may still *implement* `IConfig` by converting leftover XML internally. You debug the **AIDL objects**, not the file, unless you are looking at that converter.
 
 ---
 
@@ -192,3 +199,22 @@ AOSP paths move. When in doubt, search `android-latest-release` on [cs.android.c
 | 5 | Take a real or synthetic bug and apply the decision tree. |
 
 Do not binge-read. Audio expertise is built by correlating source with runtime dumps.
+
+---
+
+## Repository layout
+
+| Path | What it is |
+| --- | --- |
+| `modules/` | The course text (one Markdown file per module). **Edit here.** |
+| `workbook/` | Dump-reading cases 01–08 and the answer key (teaching reconstructions). |
+| `labs/` | `capture_audio_lab.sh` for collecting your own dumps. |
+| `portal/` | The website (Vite, vanilla JS). `portal/public/curriculum/` is a generated copy of `modules/` + `workbook/` — run `npm run sync` in `portal/` after editing. |
+
+## Found an error?
+
+Open an issue: https://github.com/developer-swetabh/AndroidAudioProf/issues/new?title=Erratum: — please include the module number, the sentence, and a link to the AOSP source or documentation that shows the correct behaviour.
+
+## License
+
+[MIT](LICENSE) © 2026 Swetabh Suman.

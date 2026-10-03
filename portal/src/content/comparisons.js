@@ -177,8 +177,8 @@ export const COMPARISONS = {
     headers: ["", "Core", "AudioControl"],
     rows: [
       ["Plays PCM?", "Yes", "No"],
-      ["Phones?", "Yes", "Rarely"],
-      ["AAOS extras", "Buses as devices", "HAL focus, gain hooks"],
+      ["Phones?", "Yes", "No (automotive only)"],
+      ["AAOS extras", "Buses as devices", "HAL focus, gain callbacks, duck/mute signals"],
     ],
   },
   "hidl-aidl": {

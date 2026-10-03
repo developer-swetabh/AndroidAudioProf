@@ -64,7 +64,7 @@ A surgeon with right-of-way can still be wired to the wrong room.
 | Owner (phone) | AudioService | AudioPolicy | AudioPolicy + Flinger/HAL |
 | Owner (AAOS) | CarAudioService (per zone) | Dynamic mixes + Policy | Volume groups |
 | If it fails | Two apps fight or one is silent by politeness | Wrong speaker/bus | Wrong knob or 0 gain |
-| Enforced? | Historically cooperative; AAOS 15 can fade losers | Yes, by Policy/HAL | Yes, by software or HW gain |
+| Enforced? | Phones: system-enforced since Android 12 (losing media/game players are faded; cooperative only before 12). AAOS: CarAudioFocus; AAOS 15 can also fade losers | Yes, by Policy/HAL | Yes, by software or HW gain |
 
 ### Phone focus vs AAOS focus
 
@@ -113,7 +113,7 @@ Static context map (from AOSP automotive docs; system contexts are Android 11+):
 | `NAVIGATION` | `ASSISTANCE_NAVIGATION_GUIDANCE` |
 | `VOICE_COMMAND` | `ASSISTANT`, `ASSISTANCE_ACCESSIBILITY` |
 | `CALL_RING` | `NOTIFICATION_RINGTONE` |
-| `CALL` | `VOICE_COMMUNICATION`, `VOICE_COMMUNICATION_SIGNALING` |
+| `CALL` | `VOICE_COMMUNICATION`, `CALL_ASSISTANT`, `VOICE_COMMUNICATION_SIGNALING` |
 | `ALARM` | `ALARM` |
 | `NOTIFICATION` | `NOTIFICATION` and `NOTIFICATION_*` |
 | `SYSTEM_SOUND` | `ASSISTANCE_SONIFICATION` |

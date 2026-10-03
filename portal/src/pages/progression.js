@@ -31,7 +31,7 @@ export function pageProgression(arg = "") {
     <div class="wrap prog-page">
       <div class="wb-head">
         <div>
-          <div class="badge">Phase 7 · Progression</div>
+          <div class="badge">Progression</div>
           <h1>Engineering ladder</h1>
           <p class="lede">Gates are demonstrations, not rereads. You can be high on AAOS XML and junior on ASoC — rank <strong>per track</strong>, not one ego number. Markdown in Module 24 stays canonical.</p>
         </div>

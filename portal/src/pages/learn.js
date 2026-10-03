@@ -1,15 +1,34 @@
-import { $, $$, copy } from "../lib/dom.js";
+import { $, $$, esc, modHref, onCleanPath } from "../lib/dom.js";
 import { load, save } from "../lib/storage.js";
 import { setMain } from "../shell.js";
 import { TRACKS, MODULES, getNeighbors } from "../content/catalog.js";
 import { getLesson } from "../content/lessons.js";
-import { enhanceModuleHtml, hydrateMermaid, parseMarkdown, slugHeading } from "../lib/markdown.js";
+import {
+  enhanceModuleHtml,
+  highlightCode,
+  hydrateMermaid,
+  parseMarkdown,
+  slugHeading,
+  wireCopyButtons,
+  wrapTables,
+} from "../lib/markdown.js";
+import UPDATED from "../content/updated.json";
 import { mountLessonDiagram } from "../diagrams/learnBind.js";
 
 let learnGen = 0;
 
-export async function pageLearn(id) {
+const REPO = "https://github.com/developer-swetabh/AndroidAudioProf";
+
+function fmtDate(iso) {
+  if (!iso) return "";
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+export async function pageLearn(arg) {
   const gen = ++learnGen;
+  const [id, section] = String(arg || "").split("/");
   if (!id) {
     renderIndex();
     return;
@@ -27,12 +46,21 @@ export async function pageLearn(id) {
 
   setMain(`
     <div class="learn-layout">
-      <aside class="mod-tree" id="modTree"></aside>
+      <details class="mod-drawer" id="modDrawer">
+        <summary>Modules · ${esc(mod.trackTitle)}</summary>
+        <aside class="mod-tree" id="modTree" aria-label="Course modules"></aside>
+      </details>
       <section class="learn-view">
         <div class="module-header">
           <span class="badge">Module ${mod.id}</span>
           <span class="layer-badge">${mod.mins} min · ${mod.trackTitle}</span>
           <h1>${mod.title}</h1>
+          <p class="module-meta">
+            <span>Applies to: Android 15 (AOSP)</span>
+            ${UPDATED[mod.file] ? `<span>· Last updated <time datetime="${UPDATED[mod.file]}">${fmtDate(UPDATED[mod.file])}</time></span>` : ""}
+            <span>· <a href="${REPO}/blob/main/modules/${mod.file}" rel="noopener">Source</a></span>
+            <span>· <a href="${REPO}/issues/new?title=${encodeURIComponent(`Erratum: Module ${mod.id}`)}" rel="noopener">Report an error</a></span>
+          </p>
         </div>
         ${
           hasFlow
@@ -49,13 +77,15 @@ export async function pageLearn(id) {
         <nav class="learn-toc" id="learnToc" aria-label="In this module"></nav>
         <article class="md-body" id="md">Loading curriculum…</article>
         <div class="module-nav">
-          ${prev ? `<a class="btn-ghost" href="#/learn/${prev.id}">← ${prev.title}</a>` : "<span></span>"}
+          ${prev ? `<a class="btn-ghost" href="${modHref(prev.id)}">← ${prev.title}</a>` : "<span></span>"}
           <button class="btn" id="markDone" type="button">${done.has(id) ? "Completed ✓" : "Mark complete"}</button>
-          ${next ? `<a class="btn-ghost" href="#/learn/${next.id}">${next.title} →</a>` : "<span></span>"}
+          ${next ? `<a class="btn-ghost" href="${modHref(next.id)}">${next.title} →</a>` : "<span></span>"}
         </div>
       </section>
     </div>`);
   renderTree(id);
+  const drawer = $("#modDrawer");
+  if (drawer && window.matchMedia("(min-width: 981px)").matches) drawer.open = true;
   $("#markDone").onclick = () => {
     const d = new Set(load().done || []);
     d.has(id) ? d.delete(id) : d.add(id);
@@ -77,34 +107,76 @@ export async function pageLearn(id) {
     const text = await res.text();
     if (gen !== learnGen) return;
     if (!res.ok) throw new Error(res.statusText);
-    $("#md").innerHTML = enhanceModuleHtml(parseMarkdown(text));
-    wireHeadings($("#md"), $("#learnToc"));
-    $$(".copy-code").forEach((b) => {
-      b.onclick = () => copy(b.parentElement.querySelector("code")?.innerText || "");
-    });
+    const md = $("#md");
+    md.innerHTML = enhanceModuleHtml(parseMarkdown(text));
+    wireHeadings(md, $("#learnToc"), mod.id);
+    wrapTables(md);
+    wireCopyButtons(md);
+    if (section) jumpTo(section);
+    else if (!location.hash.startsWith("#/") && location.hash.length > 1) jumpTo(decodeURIComponent(location.hash.slice(1)));
+    highlightCode(md).catch(() => {});
     try {
-      await hydrateMermaid($("#md"));
+      await hydrateMermaid(md);
     } catch {
-      /* mermaid CDN optional; ASCII/code fence remains */
+      /* diagram source stays visible as a code block */
     }
     if (gen !== learnGen) return;
   } catch {
     if (gen !== learnGen) return;
-    $("#md").innerHTML = `<p class="invent">Could not load <code>${mod.file}</code>. Run <code>npm run dev</code> from <code>portal/</code>.</p>`;
+    $("#md").innerHTML = `<p class="invent">Couldn't load this lesson. <a href="${modHref(mod.id)}" data-retry>Retry</a> or <a href="${REPO}/blob/main/modules/${mod.file}" rel="noopener">read it on GitHub</a>.</p>`;
+    const r = $("[data-retry]");
+    if (r && !onCleanPath()) r.onclick = (e) => { e.preventDefault(); pageLearn(arg); };
   }
 }
 
-function wireHeadings(article, toc) {
-  const hs = $$("h2", article);
+function jumpTo(secId) {
+  const el = document.getElementById(secId);
+  if (!el) return;
+  if (el.tagName === "DETAILS") el.open = true;
+  el.closest("details")?.setAttribute("open", "");
+  requestAnimationFrame(() => el.scrollIntoView({ block: "start" }));
+}
+
+function sectionHref(modId, secId) {
+  return onCleanPath() ? `#${secId}` : `#/learn/${modId}/${secId}`;
+}
+
+function wireHeadings(article, toc, modId) {
+  const hs = $$("h2, h3", article);
   if (!hs.length || !toc) return;
+  const seen = new Set();
   hs.forEach((h) => {
-    h.id = h.id || `sec-${slugHeading(h.textContent)}`;
+    if (!h.id || seen.has(h.id)) {
+      let base = `sec-${slugHeading(h.textContent)}`;
+      let idv = base;
+      for (let n = 2; seen.has(idv) || (document.getElementById(idv) && document.getElementById(idv) !== h); n++) idv = `${base}-${n}`;
+      h.id = idv;
+    }
+    seen.add(h.id);
+    const label = h.textContent.trim();
+    const a = document.createElement("a");
+    a.className = "anchor";
+    a.href = sectionHref(modId, h.id);
+    a.setAttribute("aria-label", `Link to section: ${label}`);
+    a.textContent = "#";
+    a.onclick = (e) => {
+      e.preventDefault();
+      history.replaceState(history.state, "", a.getAttribute("href"));
+      h.scrollIntoView({ block: "start", behavior: "smooth" });
+    };
+    h.appendChild(a);
   });
-  toc.innerHTML = hs
-    .map((h) => `<button type="button" data-jump="${h.id}">${h.textContent}</button>`)
+  const h2s = hs.filter((h) => h.tagName === "H2");
+  toc.innerHTML = h2s
+    .map((h) => `<button type="button" data-jump="${h.id}">${esc(h.firstChild?.textContent || h.textContent)}</button>`)
     .join("");
   toc.querySelectorAll("[data-jump]").forEach((b) => {
-    b.onclick = () => document.getElementById(b.dataset.jump)?.scrollIntoView({ block: "start", behavior: "smooth" });
+    b.onclick = () => {
+      const el = document.getElementById(b.dataset.jump);
+      if (!el) return;
+      history.replaceState(history.state, "", sectionHref(modId, el.id));
+      el.scrollIntoView({ block: "start", behavior: "smooth" });
+    };
   });
 }
 
@@ -118,13 +190,13 @@ function renderIndex(notice = "") {
         <div>
           <div class="badge">Curriculum</div>
           <h1>Learn</h1>
-          <p class="lede">Markdown is still the textbook. Every module opens with a live flow bound to Architecture or Fundamentals — no second invented call path.</p>
+          <p class="lede">Each module is a written lesson. Most open with an interactive flow linked to the Architecture or Fundamentals studios.</p>
         </div>
         <div class="learn-progress card">
           <div class="n">${done.size}<span>/${MODULES.length}</span></div>
           <p>modules marked complete</p>
-          ${next ? `<a class="btn" href="#/learn/${next.id}">Continue · ${next.id} ${next.title}</a>` : `<p>Curriculum complete.</p>`}
-          ${last && last !== next?.id ? `<p class="muted">Last opened: <a href="#/learn/${last}">Module ${last}</a></p>` : ""}
+          ${next ? `<a class="btn" href="${modHref(next.id)}">Continue · ${next.id} ${next.title}</a>` : `<p>Curriculum complete.</p>`}
+          ${last && last !== next?.id ? `<p class="muted">Last opened: <a href="${modHref(last)}">Module ${last}</a></p>` : ""}
         </div>
       </div>
       ${notice ? `<p class="invent">${notice}</p>` : ""}
@@ -137,7 +209,7 @@ function renderIndex(notice = "") {
               ${t.modules
                 .map(
                   (m) => `<li class="${done.has(m.id) ? "done" : ""}">
-                    <a href="#/learn/${m.id}"><span class="mod-id">${m.id}</span> ${m.title}</a>
+                    <a href="${modHref(m.id)}"><span class="mod-id">${m.id}</span> ${m.title}</a>
                     <span class="mins">${m.mins} min${getLesson(m.id).diagramId ? " · flow" : ""}</span>
                   </li>`,
                 )
@@ -155,7 +227,7 @@ function renderTree(active) {
   const tree = $("#modTree");
   if (!tree) return;
   tree.innerHTML = `
-    <a class="mod-item catalog-link" href="#/learn">All tracks</a>
+    <a class="mod-item catalog-link" href="${modHref("")}">All tracks</a>
     ${TRACKS.map(
       (t) => `
       <div class="track">
@@ -164,7 +236,7 @@ function renderTree(active) {
           ${t.modules
             .map(
               (m) =>
-                `<a class="mod-item ${m.id === active ? "active" : ""} ${done.has(m.id) ? "done" : ""}" href="#/learn/${m.id}">${m.id} · ${m.title}</a>`,
+                `<a class="mod-item ${m.id === active ? "active" : ""} ${done.has(m.id) ? "done" : ""}" href="${modHref(m.id)}"${m.id === active ? ' aria-current="page"' : ""}>${m.id} · ${m.title}</a>`,
             )
             .join("")}
         </div>

@@ -53,13 +53,14 @@ AudioPolicyManager.getOutputForAttr(...)
         ↓
 returns output / flags / selected device
         ↓
-AudioFlinger creates or reuses a PlaybackThread
+AudioFlinger attaches the track to the PlaybackThread of that (already open) output
         ↓
 startOutput() / setDevice connection notifications
         ↓
 Policy updates volumes and may request reroutes
         ↓
-Flinger applies new device on the thread (may reopen HAL)
+Policy installs a new audio patch on the same output (createAudioPatch → IModule.setAudioPatch);
+only a device on another module/mixPort (A2DP, USB) needs a different output
 ```
 
 ## Architecture / Flow
@@ -95,26 +96,26 @@ sequenceDiagram
     participant APM as AudioPolicyManager
     participant HAL as Audio HAL (IModule)
 
-    Note over APM,HAL: Boot: APM queries topology via IModule.getAudioPorts / IConfig
+    Note over APM,HAL: Boot: AF/libaudiohal reads IConfig + IModule.getAudioPorts and hands APM the config.<br/>APM opens outputs → AF.openOutput → IModule.openOutputStream (stream stays open)
     App->>AF: createTrack(attributes, format, flags)
     AF->>APM: getOutputForAttr(attributes, flags, selectedDeviceId)
     Note over APM: Match strategy or dynamic mix rule -> select device
     APM-->>AF: return (ioHandle, selectedDevice, streamType)
-    AF->>AF: Assign track to PlaybackThread (create or reuse)
+    AF->>AF: Assign track to the existing PlaybackThread for that output
     AF-->>App: return IAudioTrack Binder reference
     
     App->>AF: AudioTrack.play() -> start()
     AF->>APM: startOutput(ioHandle, streamType, ...)
     APM-->>AF: status OK / volume curves
-    alt Thread in Standby
-        AF->>HAL: openOutputStream(config, flags, portHandle)
-        HAL-->>AF: IStreamOut + StreamDescriptor (FMQs)
+    alt Thread in Standby (stream already open)
+        AF->>HAL: Command.start (leave STANDBY on the existing stream)
+        HAL-->>AF: Reply(state=IDLE)
     end
     AF->>HAL: Command.burst(PCM bytes via audio.fmq)
     HAL-->>AF: Reply(observable.frames, latency, state=ACTIVE)
 ```
 
-On this course’s Android 15 AIDL platform, topology comes from **`IModule.getAudioPorts` / `getAudioRoutes` and `IConfig`**. A default HAL may convert leftover XML internally. HIDL-era APM-reads-XML is history. The *roles* stay the same; the *config transport* is an API.
+On this course’s Android 15 AIDL platform, topology comes from **`IModule.getAudioPorts` / `getAudioRoutes` and `IConfig`** — queried by AudioFlinger's libaudiohal (`DevicesFactoryHalAidl` / `DeviceHalAidl`) and handed to APM through `getAudioPolicyConfig()`. APM has no direct HAL binder. A default HAL may convert leftover XML internally. HIDL-era APM-reads-XML is history. The *roles* stay the same; the *config transport* is an API.
 
 ## Detailed Explanation
 
@@ -153,12 +154,13 @@ This surprises people.
 ```text
 User presses volume
   → AudioService or CarAudioService
-  → AudioPolicy computes index / gain
+  → AudioPolicy computes index → volume curve
   → Flinger applies stream/track volumes in the mixer
-     and/or HAL setGain / setVolume
+     (AAOS fixed volume instead: CarAudioService → setAudioPortGain(mB)
+      → IModule.setAudioPortConfig with AudioGainConfig)
 ```
 
-On phones, software attenuation in the mixer is common. On AAOS with `useFixedVolume`, Android often **does not** attenuate PCM; it sends a volume index to the HAL so the amplifier or DSP applies gain. If you look at Flinger track volume and it is 1.0 while the cabin is quiet, that can be *correct*.
+On phones, software attenuation in the mixer is common. On AAOS with `useFixedVolume`, Android often **does not** attenuate PCM; CarAudioService converts the volume-group index into a **gain in millibels** (from the `<gain>` declared on the bus device port) and applies it with `AudioManager.setAudioPortGain()` → `IModule.setAudioPortConfig(AudioGainConfig)`, so the amplifier or DSP applies gain. The HAL never sees an index. If you look at Flinger track volume and it is 1.0 while the cabin is quiet, that can be *correct*.
 
 ### 4. Two engines inside Policy
 
@@ -169,7 +171,7 @@ AOSP has more than one policy *engine*:
 | Default engine | `enginedefault` | Hard-coded strategies and product-ish rules |
 | Configurable Audio Policy (CAP) | `engineconfigurable` | XML/AIDL-described strategies, volumes, criteria |
 
-AAOS historically used **dynamic audio policy mixes** registered by CarAudioService on top of the default/CAP world. Android 14+ can lean further on CAP (`useCoreAudioRouting`, `useCoreAudioVolume`). If a document says “strategy MEDIA,” confirm which engine the build uses.
+AAOS historically used **dynamic audio policy mixes** registered by CarAudioService on top of the default/CAP world. Android 14+ can lean further on CAP (CarService overlay flags `audioUseCoreRouting`, `audioUseCoreVolume`). If a document says “strategy MEDIA,” confirm which engine the build uses.
 
 ### 5. Failure signatures you should memorize
 
@@ -214,7 +216,7 @@ AudioFlinger
     - threadLoop
     - standby
     - mixer loop
-  PlaybackTracks / RecordTracks
+  Tracks.cpp  (headers PlaybackTracks.h / RecordTracks.h)
     - start / stop / pause
 ```
 
@@ -261,7 +263,7 @@ adb shell dumpsys audio          # AudioService view (Java)
 Useful log tags (availability varies):
 
 - `APM_AudioPolicyManager`
-- `AudioPolicyIntegrator` / engine tags
+- `APM::AudioPolicyEngine` and other engine tags (grep `LOG_TAG` in `services/audiopolicy/engine*` on your branch)
 - `AudioFlinger`
 - `AudioHwDevice`
 - `AF::Track`
@@ -309,12 +311,12 @@ No output found for attributes (look at rate/channel/format)
 Write first. Then:
 
 1. Not necessarily. On AAOS, the *speaker* the user means is often a **bus device** that Policy still might describe in different views. But a *disagreement* between the two dumps is always worth explaining, not ignoring.
-2. Flinger’s thread device is what the HAL stream is opened with. That is where PCM is going.
+2. Flinger’s thread device is the sink of the output's current audio patch (set by Policy through `createAudioPatch`). That is where PCM is going.
 3. Likely AAOS or a bus-based primary HAL. On a phone you should be suspicious.
 
 **Second question:** A phone user connects a headset. Media continues on the speaker for one second, then jumps. Who owned each part of that second?
 
-Expected: device connect event → Policy recomputes device → Flinger is told to change device → may drain/reopen HAL → then PCM follows. The one second is often HAL close/open plus buffer drain, not Policy being “slow at deciding.”
+Expected: device connect event → Policy recomputes device → for a wired headset on the same HAL module, Policy installs a **new audio patch** on the existing output (`createAudioPatch` → `PlaybackThread::createAudioPatch_l` → `IModule.setAudioPatch`) — no stream reopen. PCM already queued in Flinger and HAL buffers still plays out first. The one second is usually buffer drain, vendor path switching (mixer controls, amp ramp) and the app's own buffering, not Policy being “slow at deciding.” Only a device on another module/mixPort (A2DP, USB) needs a different output.
 
 ## Key Takeaways
 

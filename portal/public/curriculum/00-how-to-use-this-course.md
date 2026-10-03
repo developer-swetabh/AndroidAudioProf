@@ -82,7 +82,7 @@ This course’s **default** is documented in [REFERENCE_PLATFORM.md](../REFERENC
 Android 15+
   + AIDL Core HAL  (android.hardware.audio.core.IModule)
   + AIDL Effects HAL
-  + APM topology from IModule / IConfig
+  + APM topology from IModule / IConfig (fetched by AudioFlinger's libaudiohal, handed to APM)
   + StreamDescriptor (FMQ burst / start / standby)
   + AAOS 15 car_audio_configuration.xml version 4
   + optional fade (v4 + car_audio_fade_configuration.xml)
