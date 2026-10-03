@@ -1,6 +1,6 @@
 # Android Audio Engineering Portal
 
-Interactive teaching and debugging console for the AOSP / AAOS audio stack (Android 15, AIDL HAL).
+Interactive teaching and debugging console for the AOSP / AAOS audio stack (Android 15, AIDL HAL). Live at https://androidaudio.vercel.app/.
 
 ## Run
 
@@ -12,34 +12,38 @@ npm run dev
 
 Open the URL Vite prints (default http://localhost:5173).
 
-## Phase 9 (this ship)
+## Scripts
 
-Lifecycle studio: `createTrack` vs `play()`, MixerThread period (FastMixer helper, Direct/Offload skip mix), two-bus vs shared, two STANDBYs, Policy room. Architecture zooms Flinger and Policy. Learn 06 binds the studio; Fundamentals still owns the four PlaybackThreads.
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Vite dev server |
+| `npm run build` | `vite build` + `scripts/prerender.mjs` (static `/learn/<id>/` pages, `sitemap.xml`, `404.html`) |
+| `npm run sync` | Copy repo `modules/` and `workbook/` into `public/curriculum/` and refresh `src/content/updated.json` from git dates |
+| `npm run sync:check` | Fail if `public/curriculum/` is out of date with the repo sources |
 
-## Phase 8
+Run `npm run sync` after editing anything in `../modules` or `../workbook`, and commit the result.
 
-Config studio on Architecture: AAOS/AOSP XML contracts (car map, fade, policy ports, CAP, flags, vendor mixer_paths). Markdown in modules 07/12/13/14 stays the essay.
-
-## Phase 7
-
-Progression: Module 24 gates A–H, layer × depth skill matrix, next-module recommendation from the same catalog. Dump/RCA labs remain from Phase 6.
+## Routes
 
 | Route | Status |
 | --- | --- |
-| `#/debug` · `#/debug/:playbook` | Live — 10 playbooks |
-| `#/learn` · `#/learn/:id` | Live — chrome + bound flow |
-| `#/architecture` | Live — pipeline |
-| `#/architecture/life/:scene/:step` | Live — Lifecycle studio (create / period / bus / standby / policy) |
-| `#/architecture/xml/:id` | Live — Config studio (car / fade / policy / flags) |
-| `#/fundamentals` | Live — PCM studio |
-| `#/glossary` | Live |
+| `/learn/:id/` | Prerendered module pages (crawlable, shareable) |
+| `#/debug` · `#/debug/:playbook` | 10 debug playbooks |
+| `#/learn` · `#/learn/:id` | Module reader (hash route) |
+| `#/architecture` | Pipeline |
+| `#/architecture/life/:scene/:step` | Lifecycle studio (create / period / bus / standby / policy) |
+| `#/architecture/xml/:id` | Config studio (car / fade / policy / flags) |
+| `#/fundamentals` | PCM studio |
+| `#/glossary` | Glossary |
 | `#/workbench` | Calculator + dump lab + RCA lab |
-| `#/workbench/dump/:service/:scenario` | Live — empty pair ≠ Flinger stub |
-| `#/workbench/rca/:id` | Live — cases 01–08 |
-| `#/progression` · `#/progression/:gate` | Live — gates A–H |
+| `#/workbench/dump/:service/:scenario` | Dump lab |
+| `#/workbench/rca/:id` | RCA cases 01–08 (illustrative) |
+| `#/progression` · `#/progression/:gate` | Gates A–H |
 
 `Ctrl+K` / `Cmd+K` opens the command palette.
 
-Content lives in `src/content/` (`catalog.js`, `terms.js`, `comparisons.js`). Long-form teaching stays in `public/curriculum/` (copied from repo `modules/`).
+Content lives in `src/content/` (`catalog.js`, `terms.js`, `comparisons.js`). Long-form teaching lives in `public/curriculum/`, which is a generated copy of repo `modules/` (do not edit it by hand).
 
-Design system: `../master_prompt.md`.
+## Deployment
+
+Vercel, project root `portal/`. `vercel.json` sets trailing slashes, immutable caching for `/assets/*`, and `X-Robots-Tag: noindex` on `/curriculum/*` (raw markdown the app fetches; the prerendered `/learn/` pages are the indexable copies).
