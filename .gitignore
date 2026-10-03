@@ -6,3 +6,6 @@ portal/dist/
 
 labs/captures/*
 !labs/captures/.gitkeep
+
+# Local-only authoring notes (not published)
+master_prompt.md
