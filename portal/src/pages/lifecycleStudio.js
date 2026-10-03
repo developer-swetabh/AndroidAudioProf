@@ -15,7 +15,7 @@ export function pageLifecycleStudio(arg = "") {
     <div class="wrap lc-page" data-life-scene="${scene}" data-life-step="${stepId}">
       <div class="wb-head">
         <div>
-          <div class="badge">Phase 9 · Lifecycle studio</div>
+          <div class="badge">Lifecycle studio</div>
           <h1>Inside the period</h1>
           <p class="lede">Construction already routes. <code>play()</code> starts the thread. Direct/Offload skip AudioMixer, not Flinger. Two buses can HW-duck; one PCM cannot. Flinger software standby is not <code>StreamDescriptor</code> STANDBY.</p>
         </div>

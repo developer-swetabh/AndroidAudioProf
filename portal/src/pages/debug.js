@@ -22,7 +22,7 @@ function renderIndex() {
     <div class="wrap dbg-index">
       <div class="dbg-index-head">
         <div>
-          <div class="badge">Phase 5 · Diagnostic engine</div>
+          <div class="badge">Diagnostic engine</div>
           <h1>Debug</h1>
           <p class="lede">Classify first. For overlap and distortion: <strong>capture Flinger (twice), Policy, Perfetto, QXDM last</strong> — then analyze. Dumps here are teaching reconstructions, not a second textbook.</p>
         </div>

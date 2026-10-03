@@ -9,16 +9,16 @@ export function pageHome() {
       <div class="hero-inner">
         <div class="badge">Android 15 · AOSP &amp; AAOS · Beginner to Architect</div>
         <h1>Android Audio,<br>Completely Demystified.</h1>
-        <p class="lede">From your first <code>AudioTrack.play()</code> to actual acoustic energy at a speaker — one catalog, one glossary, and a console that will grow phase by phase.</p>
+        <p class="lede">From your first <code>AudioTrack.play()</code> to actual acoustic energy at a speaker — with a module catalog, a glossary, and interactive studios for debugging and configuration.</p>
         <div class="cta-row">
           <a class="btn" href="#/learn">Start Learning →</a>
           <a class="btn-ghost" href="#/glossary">Open Glossary →</a>
         </div>
         <div class="stats wrap stats-home">
-          ${stat(MODULES.length, "Modules · one catalog, not two")}
-          ${stat(TERMS.length, "Terms · Compare by id, not first word")}
-          ${stat(10, "Debug playbooks · live engine")}
-          ${stat(8, "Gates A–H · demonstrations")}
+          ${stat(MODULES.length, "Modules")}
+          ${stat(TERMS.length, "Glossary terms")}
+          ${stat(10, "Debug playbooks")}
+          ${stat(8, "Skill gates A–H")}
         </div>
       </div>
     </section>
@@ -32,9 +32,9 @@ export function pageHome() {
       </div>
 
       <div class="phase-note">
-        <h2>What is live in Phase 9</h2>
+        <h2>Interactive tools</h2>
         <ul>
-          <li><strong>Lifecycle studio</strong> — createTrack vs play(), MixerThread period (Fast/Direct/Offload picker), two-bus vs shared, two STANDBYs, Policy room. Module 06 binds it. Fundamentals still has the four threads.</li>
+          <li><strong>Lifecycle studio</strong> — createTrack vs play(), MixerThread period (Fast/Direct/Offload picker), two-bus vs shared, two STANDBYs, Policy room. Module 06 uses it. Fundamentals covers the thread types.</li>
           <li><strong>Config studio</strong> — car XML, fade XML, policy ports, CAP, flags, mixer_paths.</li>
           <li><strong>Progression</strong> — gates A–H. Rank per track.</li>
           <li><strong>Workbench / Debug</strong> — dump lab, RCA 01–08, 10 playbooks.</li>

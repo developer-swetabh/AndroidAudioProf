@@ -39,7 +39,7 @@ function chrome(tab, body) {
     <div class="wrap wb-page">
       <div class="wb-head">
         <div>
-          <div class="badge">Phase 6 · Workbench</div>
+          <div class="badge">Workbench</div>
           <h1>Lab bench</h1>
           <p class="lede">${lede(tab)}</p>
         </div>

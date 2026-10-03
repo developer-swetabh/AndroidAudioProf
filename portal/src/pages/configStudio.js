@@ -18,7 +18,7 @@ export function pageConfigStudio(arg = "") {
     <div class="wrap xml-page">
       <div class="wb-head">
         <div>
-          <div class="badge">Phase 8 · Config studio</div>
+          <div class="badge">Config studio</div>
           <h1>XML that actually routes</h1>
           <p class="lede">Files are boot contracts. <strong>dumpsys is the running machine.</strong> Car XML maps context → bus address and installs mixes; it is not re-parsed on <code>play()</code>. Fade XML is not a bus mute. mixer_paths is not Policy.</p>
         </div>

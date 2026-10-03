@@ -5,6 +5,7 @@ import { TERMS } from "./content/terms.js";
 import { DUMP_SCENARIOS } from "./content/dumpLab.js";
 import { RCA_CASES } from "./content/rcaCases.js";
 import { GATES } from "./content/gates.js";
+import { rethemeMermaid } from "./lib/markdown.js";
 import { XML_FILES } from "./content/xmlFiles.js";
 import { LIFE_SCENES } from "./content/lifecycle.js";
 
@@ -28,10 +29,22 @@ adb logcat -b main,system,crash -v threadtime`;
 
 let mounted = false;
 
+/** Saved choice wins; otherwise follow the OS setting on first visit. */
+export function currentTheme() {
+  const saved = load().theme;
+  if (saved === "light" || saved === "dark") return saved;
+  return window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
 export function applyTheme() {
-  document.documentElement.dataset.theme = load().theme || "dark";
+  const theme = currentTheme();
+  document.documentElement.dataset.theme = theme;
   const btn = $("#themeBtn");
-  if (btn) btn.textContent = (load().theme || "dark") === "light" ? "☾" : "☀";
+  if (btn) {
+    btn.textContent = theme === "light" ? "☾" : "☀";
+    btn.setAttribute("aria-label", theme === "light" ? "Switch to dark theme" : "Switch to light theme");
+    btn.setAttribute("aria-pressed", theme === "light" ? "true" : "false");
+  }
 }
 
 export function mountShell() {
@@ -39,11 +52,10 @@ export function mountShell() {
   mounted = true;
   const app = $("#app");
   app.innerHTML = `
-    <div class="version-banner" role="status">
-      <span>Default: <strong>Android 15</strong> · AIDL Core HAL · AAOS Config v4</span>
+    <div class="version-banner" role="note">
+      <span>Course targets <strong>Android 15</strong> · AIDL Core HAL · AAOS car config v4</span>
       <span class="banner-sep" aria-hidden="true">·</span>
-      <span class="phase-chip">Phase 9</span>
-      <a href="#/learn/23">Still on HIDL? Classification guide →</a>
+      <a href="#/learn/23">Other versions / HIDL? Classification guide →</a>
     </div>
     <header class="app-nav">
       <a class="brand" href="#/home" aria-label="Home">
@@ -54,13 +66,16 @@ export function mountShell() {
       <nav class="nav-links" id="navLinks" aria-label="Primary"></nav>
       <div class="nav-actions">
         <button class="icon-btn" id="searchBtn" type="button" aria-label="Search (Ctrl+K)">⌘K</button>
-        <button class="icon-btn" id="themeBtn" type="button" aria-label="Toggle theme">☀</button>
+        <button class="icon-btn" id="themeBtn" type="button" aria-label="Switch to light theme" aria-pressed="false">☀</button>
         <button class="icon-btn" id="cmdBtn" type="button" aria-label="Quick commands">$_</button>
       </div>
     </header>
     <main id="app-main" class="page" tabindex="-1"></main>
     <footer class="site-sig" role="contentinfo">
-      Created by <strong>Swetabh</strong>.
+      Created by <strong>Swetabh Suman</strong> ·
+      <a href="https://github.com/developer-swetabh/AndroidAudioProf" rel="noopener">Source on GitHub</a> ·
+      <a href="https://github.com/developer-swetabh/AndroidAudioProf/issues/new?title=Erratum:%20" rel="noopener">Report an error</a> ·
+      <a href="https://github.com/developer-swetabh/AndroidAudioProf/blob/main/LICENSE" rel="noopener">MIT License</a>
     </footer>
     <div class="cmd-dock" id="dock"></div>
   `;
@@ -70,8 +85,9 @@ export function mountShell() {
   ).join("");
 
   $("#themeBtn").onclick = () => {
-    save({ theme: (load().theme || "dark") === "dark" ? "light" : "dark" });
+    save({ theme: currentTheme() === "dark" ? "light" : "dark" });
     applyTheme();
+    rethemeMermaid().catch(() => {});
   };
   $("#searchBtn").onclick = openPalette;
   $("#cmdBtn").onclick = toggleCmds;
@@ -116,8 +132,8 @@ export function openPalette() {
   ];
   const el = document.createElement("div");
   el.className = "overlay";
-  el.innerHTML = `<div class="palette" role="dialog" aria-label="Command palette">
-    <input id="pin" placeholder="Jump to a page, module, or term…" autocomplete="off" />
+  el.innerHTML = `<div class="palette" role="dialog" aria-modal="true" aria-label="Search">
+    <input id="pin" placeholder="Jump to a page, module, or term…" autocomplete="off" aria-label="Search pages, modules and terms" />
     <div id="plist"></div>
   </div>`;
   document.body.appendChild(el);
@@ -157,7 +173,17 @@ export function openPalette() {
     }
     if (e.key === "Enter") rows[sel]?.click();
     if (e.key === "Escape") el.remove();
+
   };
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") el.remove();
+    if (e.key !== "Tab") return;
+    // Keep focus inside the dialog.
+    const f = [pin, ...$$(".palette-item")];
+    const i = f.indexOf(document.activeElement);
+    e.preventDefault();
+    f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length]?.focus();
+  });
   el.onclick = (e) => {
     if (e.target === el) el.remove();
   };

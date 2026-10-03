@@ -18,7 +18,7 @@ export function pageFundamentals(arg) {
   setMain(`
     <div class="fund-page">
       <header class="fund-hero">
-        <div class="badge">Phase 2 · Digital audio physics</div>
+        <div class="badge">Digital audio fundamentals</div>
         <h1>Sound as numbers</h1>
         <p class="lede">Hz is frames per second of the stream clock. A frame is every channel at one instant. Period is the wake quantum. Buffer is the jitter tank. Offload is not a PCM mixer path.</p>
         <p class="fund-links">

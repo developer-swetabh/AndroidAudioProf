@@ -5,10 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "vite build && node scripts/prerender.mjs",
+    "preview": "vite preview",
+    "sync": "node scripts/sync-curriculum.mjs",
+    "sync:check": "node scripts/sync-curriculum.mjs --check"
   },
   "devDependencies": {
     "vite": "^6.0.0"
+  },
+  "dependencies": {
+    "dompurify": "3.4.16",
+    "highlight.js": "11.12.0",
+    "marked": "18.0.14",
+    "mermaid": "11.17.2"
   }
 }

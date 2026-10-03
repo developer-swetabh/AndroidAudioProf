@@ -1,3 +1,5 @@
+import { marked } from "marked";
+import DOMPurify from "dompurify";
 import { esc } from "./dom.js";
 import { MODULES } from "../content/catalog.js";
 import { RCA_CASES } from "../content/rcaCases.js";
@@ -43,10 +45,17 @@ export function rewriteCurriculumLinks(html) {
   });
 }
 
+/** Markdown → sanitized HTML. marked and DOMPurify are bundled (version-pinned in package.json). */
+export function sanitizeHtml(html) {
+  return DOMPurify.sanitize(html, { ADD_ATTR: ["target"] });
+}
+
 export function parseMarkdown(text) {
-  const parse = window.marked?.parse;
-  if (typeof parse === "function") return rewriteCurriculumLinks(parse(text));
-  return `<pre>${esc(text)}</pre>`;
+  try {
+    return rewriteCurriculumLinks(sanitizeHtml(marked.parse(String(text ?? ""))));
+  } catch {
+    return `<pre>${esc(text)}</pre>`;
+  }
 }
 
 export function enhanceModuleHtml(html) {
@@ -66,7 +75,10 @@ export function enhanceModuleHtml(html) {
     (_, body) =>
       `<details class="practice-fold" id="sec-practice"><summary>Practice</summary>${body}</details>`,
   );
-  h = h.replace(/<pre><code/g, '<div class="code-wrap"><button class="icon-btn copy-code" type="button" aria-label="Copy">⧉</button><pre><code');
+  h = h.replace(
+    /<pre><code/g,
+    '<div class="code-wrap"><button class="copy-code" type="button" aria-label="Copy code to clipboard">Copy</button><pre tabindex="0"><code',
+  );
   h = h.replace(/<\/pre>/g, "</pre></div>");
   return h;
 }
@@ -82,36 +94,171 @@ export function slugHeading(text) {
 
 let mermaidMod = null;
 
+function mermaidTheme() {
+  return document.documentElement.dataset.theme === "light" ? "default" : "dark";
+}
+
+async function loadMermaid() {
+  // Code-split chunk, version-locked through package-lock.json (no CDN).
+  mermaidMod ??= (await import("mermaid")).default;
+  mermaidMod.initialize({
+    startOnLoad: false,
+    securityLevel: "strict",
+    theme: mermaidTheme(),
+    fontFamily: "Inter, system-ui, sans-serif",
+    flowchart: { useMaxWidth: true, htmlLabels: true, nodeSpacing: 28, rankSpacing: 36 },
+    sequence: { useMaxWidth: true, actorMargin: 28, messageMargin: 28 },
+  });
+  return mermaidMod;
+}
+
+let mmdSeq = 0;
+
+async function renderMermaidInto(div, src) {
+  try {
+    const id = `mmd-${Date.now()}-${mmdSeq++}`;
+    const { svg } = await mermaidMod.render(id, src);
+    div.innerHTML = svg;
+    const svgEl = div.querySelector("svg");
+    if (svgEl) {
+      svgEl.setAttribute("role", "img");
+      const first = src.trim().split("\n")[0] || "diagram";
+      svgEl.setAttribute("aria-label", `Diagram (${first.trim()}). The source text follows in the expandable section.`);
+    }
+    const det = document.createElement("details");
+    det.className = "mermaid-src";
+    det.innerHTML = `<summary>Diagram source (text)</summary><pre>${esc(src)}</pre>`;
+    div.appendChild(det);
+  } catch {
+    div.innerHTML = `<pre class="mermaid-fail">${esc(src)}</pre>`;
+  }
+}
+
 export async function hydrateMermaid(root) {
   if (!root) return;
   const blocks = [...root.querySelectorAll("pre code.language-mermaid, pre code.lang-mermaid")];
   if (!blocks.length) return;
   try {
-    mermaidMod ??= (await import("https://cdn.jsdelivr.net/npm/mermaid@11/+esm")).default;
-    mermaidMod.initialize({
-      startOnLoad: false,
-      securityLevel: "strict",
-      theme: "dark",
-      fontFamily: "Inter, system-ui, sans-serif",
-      flowchart: { useMaxWidth: true, htmlLabels: true, nodeSpacing: 28, rankSpacing: 36 },
-      sequence: { useMaxWidth: true, actorMargin: 28, messageMargin: 28 },
-    });
+    await loadMermaid();
   } catch {
     return;
   }
-  let n = 0;
   for (const code of blocks) {
     const src = code.textContent || "";
     const wrap = code.closest(".code-wrap") || code.closest("pre") || code;
     const div = document.createElement("div");
     div.className = "mermaid-live";
+    div.dataset.src = src;
     wrap.replaceWith(div);
+    await renderMermaidInto(div, src);
+  }
+}
+
+/** Re-render live diagrams after a theme toggle so they match light/dark. */
+export async function rethemeMermaid() {
+  const live = [...document.querySelectorAll(".mermaid-live[data-src]")];
+  if (!live.length || !mermaidMod) return;
+  await loadMermaid();
+  for (const div of live) await renderMermaidInto(div, div.dataset.src);
+}
+
+/* ---------- code highlighting (lazy chunk) ---------- */
+
+let hljsMod = null;
+const LANG_ALIAS = { aidl: "java", sh: "bash", shell: "bash", console: "bash", dts: "dts", kt: "kotlin", c: "cpp", h: "cpp", rc: "bash" };
+
+async function loadHljs() {
+  if (hljsMod) return hljsMod;
+  const [core, bash, xml, cpp, java, kotlin, dts] = await Promise.all([
+    import("highlight.js/lib/core"),
+    import("highlight.js/lib/languages/bash"),
+    import("highlight.js/lib/languages/xml"),
+    import("highlight.js/lib/languages/cpp"),
+    import("highlight.js/lib/languages/java"),
+    import("highlight.js/lib/languages/kotlin"),
+    import("highlight.js/lib/languages/dts"),
+  ]);
+  const h = core.default;
+  h.registerLanguage("bash", bash.default);
+  h.registerLanguage("xml", xml.default);
+  h.registerLanguage("cpp", cpp.default);
+  h.registerLanguage("java", java.default);
+  h.registerLanguage("kotlin", kotlin.default);
+  h.registerLanguage("dts", dts.default);
+  hljsMod = h;
+  return h;
+}
+
+/** Highlight fenced code that declares a known language; label every block. Plain/ASCII blocks stay untouched. */
+export async function highlightCode(root) {
+  if (!root) return;
+  const codes = [...root.querySelectorAll("pre > code")];
+  const todo = [];
+  for (const code of codes) {
+    const m = /(?:^|\s)language-([\w+-]+)/.exec(code.className || "");
+    if (!m) continue;
+    const raw = m[1].toLowerCase();
+    if (raw === "mermaid") continue;
+    const wrap = code.closest(".code-wrap");
+    if (wrap && !wrap.querySelector(".code-lang") && raw !== "text") {
+      const lab = document.createElement("span");
+      lab.className = "code-lang";
+      lab.textContent = raw;
+      wrap.prepend(lab);
+    }
+    const lang = LANG_ALIAS[raw] || raw;
+    todo.push({ code, lang });
+  }
+  if (!todo.length) return;
+  let h;
+  try {
+    h = await loadHljs();
+  } catch {
+    return;
+  }
+  for (const { code, lang } of todo) {
+    if (!h.getLanguage(lang)) continue;
     try {
-      const id = `mmd-${Date.now()}-${n++}`;
-      const { svg } = await mermaidMod.render(id, src);
-      div.innerHTML = svg;
+      // hljs escapes the text it was given; we only feed it textContent.
+      code.innerHTML = h.highlight(code.textContent || "", { language: lang, ignoreIllegals: true }).value;
+      code.classList.add("hljs");
     } catch {
-      div.innerHTML = `<pre class="mermaid-fail">${esc(src)}</pre>`;
+      /* leave plain */
     }
   }
+}
+
+/** Copy buttons with visible + announced feedback. */
+export function wireCopyButtons(root) {
+  if (!root) return;
+  root.querySelectorAll(".copy-code").forEach((btn) => {
+    btn.onclick = async () => {
+      const code = btn.parentElement.querySelector("code");
+      const text = code?.innerText || "";
+      let ok = false;
+      try {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      } catch {
+        ok = false;
+      }
+      btn.textContent = ok ? "Copied" : "Copy failed";
+      btn.setAttribute("aria-live", "polite");
+      clearTimeout(btn._t);
+      btn._t = setTimeout(() => (btn.textContent = "Copy"), 1500);
+    };
+  });
+}
+
+/** Horizontal scroll wrapper so wide tables do not squash on phones. */
+export function wrapTables(root) {
+  if (!root) return;
+  root.querySelectorAll("table").forEach((t) => {
+    if (t.parentElement?.classList.contains("table-wrap")) return;
+    const w = document.createElement("div");
+    w.className = "table-wrap";
+    w.tabIndex = 0;
+    t.replaceWith(w);
+    w.append(t);
+  });
 }
