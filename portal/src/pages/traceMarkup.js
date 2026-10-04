@@ -150,7 +150,7 @@ export function flowHtml(flow, { variant = "page", from = 1, to = flow.steps.len
         <button type="button" class="btn flow-next" data-next aria-label="Next step"${first === to ? " disabled" : ""}>Next →</button>
         <span class="flow-extra">
           <button type="button" class="btn-ghost flow-play" data-play aria-pressed="false">▶ Play</button>
-          <button type="button" class="btn-ghost flow-copy" data-copy-step aria-label="Copy a link to this step">Copy link</button>
+          <button type="button" class="btn-ghost flow-copy" data-copy-step aria-label="Copy link to this step">Copy link</button>
         </span>
       </div>
       <p class="sr-only" aria-live="polite" data-live></p>

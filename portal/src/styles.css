@@ -4215,6 +4215,16 @@ a.btn-ghost {
 .trace-more {
   margin-top: 24px;
 }
+.trace-more li {
+  margin: 6px 0;
+}
+.trace-more a,
+.fs-links a,
+.fs-sources a {
+  display: inline-block;
+  min-height: 24px;
+  padding: 2px 0;
+}
 
 /* Player layout: only with JS (html.js is set in <head> before first paint, so no shift). */
 html.js .flow-controls {
