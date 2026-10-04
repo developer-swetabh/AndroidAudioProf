@@ -14,7 +14,8 @@ import {
 import UPDATED from "../content/updated.json";
 import { mountLessonDiagram } from "../diagrams/learnBind.js";
 import { scanIslands } from "../lib/islands.js";
-import { REPO, anchorHeadings, learnPageHtml, treeHtml } from "./learnMarkup.js";
+import { REPO, anchorHeadings, learnPageHtml, treeHtml, alsoFlowsHtml } from "./learnMarkup.js";
+import FLOW_INDEX from "../content/generated/index.json";
 
 let learnGen = 0;
 
@@ -35,7 +36,7 @@ export async function pageLearn(arg) {
   // Prerendered /learn/<id>/ page: keep the static DOM (no fetch, no re-render) and only wire it up.
   const pre = consumePrerendered(`learn/${id}`) && Boolean($("#md")?.querySelector("h2"));
   save({ lastModule: id });
-  const { prev, next } = getNeighbors(id);
+  const { prev, next, prevInTrack, nextInTrack } = getNeighbors(id);
   const done = new Set(load().done || []);
   const lesson = getLesson(id);
   const hasFlow = Boolean(lesson.diagramId);
@@ -46,6 +47,9 @@ export async function pageLearn(arg) {
       mod,
       prev,
       next,
+      prevInTrack,
+      nextInTrack,
+      alsoHtml: alsoFlowsHtml(FLOW_INDEX.flows, id, false),
       isDone: done.has(id),
       lesson,
       updatedIso: UPDATED[mod.file],
@@ -140,6 +144,52 @@ function wireHeadings(article, toc, modId) {
       el.scrollIntoView({ block: "start", behavior: "smooth" });
     };
   });
+  spyToc(article, toc);
+}
+
+let spy = null;
+/**
+ * Scroll-tracked TOC: the h2 that most recently crossed below the sticky header
+ * is marked aria-current="location" in #learnToc and named in the breadcrumb.
+ * IntersectionObserver only triggers the (cheap) recompute; nothing moves layout.
+ */
+function spyToc(article, toc) {
+  spy?.disconnect();
+  const heads = [...article.querySelectorAll("h2[id]")];
+  const btns = new Map([...(toc?.querySelectorAll("[data-jump]") || [])].map((b) => [b.dataset.jump, b]));
+  const crumb = document.querySelector("[data-crumb-sec]");
+  if (!heads.length || !("IntersectionObserver" in window)) return;
+  let current = null;
+  const line = () => (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--nav-h")) || 64) + 56;
+  const update = () => {
+    if (!article.isConnected) return spy?.disconnect();
+    const y = line();
+    let active = null;
+    for (const h of heads) {
+      if (h.getBoundingClientRect().top - y <= 1) active = h;
+      else break;
+    }
+    // At the end of the page the last short sections can never reach the line: use the last one in view.
+    if (innerHeight + scrollY >= document.documentElement.scrollHeight - 2) {
+      for (const h of heads) if (h.getBoundingClientRect().top < innerHeight * 0.85) active = h;
+    }
+    if (active === current) return;
+    current = active;
+    btns.forEach((b, id) => (active && id === active.id ? b.setAttribute("aria-current", "location") : b.removeAttribute("aria-current")));
+    if (crumb) crumb.textContent = active ? active.textContent.replace(/#\s*$/, "").trim() : "";
+  };
+  let raf = 0;
+  const schedule = () => {
+    if (!raf) raf = requestAnimationFrame(() => ((raf = 0), update()));
+  };
+  spy = new IntersectionObserver(schedule, { rootMargin: `-${line()}px 0px 0px 0px`, threshold: [0, 1] });
+  heads.forEach((h) => spy.observe(h));
+  // Fast scrolls or jumps can skip an intersection change; a passive scroll hook keeps it exact.
+  addEventListener("scroll", schedule, { passive: true });
+  spy.cleanup = () => removeEventListener("scroll", schedule);
+  const disconnect = spy.disconnect.bind(spy);
+  spy.disconnect = () => (spy.cleanup(), disconnect());
+  update();
 }
 
 function renderIndex(notice = "") {
@@ -165,7 +215,7 @@ function renderIndex(notice = "") {
       <div class="track-grid">
         ${TRACKS.map(
           (t) => `
-          <section class="card track-card">
+          <section class="card track-card" id="track-${t.id}">
             <h2>${t.title}</h2>
             <ol>
               ${t.modules
@@ -181,6 +231,9 @@ function renderIndex(notice = "") {
         ).join("")}
       </div>
     </div>`);
+  // Track links from breadcrumbs (/learn/#track-t1): the runtime index differs from the static one, so re-apply the fragment.
+  const t = /^#track-[\w-]+$/.test(location.hash) && document.getElementById(location.hash.slice(1));
+  if (t) t.scrollIntoView({ block: "start" });
 }
 
 function renderTree(active) {

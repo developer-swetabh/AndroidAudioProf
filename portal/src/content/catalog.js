@@ -70,7 +70,19 @@ export function getModule(id) {
   return MODULES.find((m) => m.id === id) || MODULES[0];
 }
 
+/**
+ * Track-aware neighbours. MODULES is already in track order; each side also says
+ * whether it stays in the current track (labels: "Next in Core stack" vs "Next track: …").
+ */
 export function getNeighbors(id) {
   const i = MODULES.findIndex((m) => m.id === id);
-  return { prev: MODULES[i - 1] || null, next: MODULES[i + 1] || null };
+  const cur = MODULES[i];
+  const prev = MODULES[i - 1] || null;
+  const next = MODULES[i + 1] || null;
+  return {
+    prev,
+    next,
+    prevInTrack: Boolean(prev && cur && prev.trackId === cur.trackId),
+    nextInTrack: Boolean(next && cur && next.trackId === cur.trackId),
+  };
 }
