@@ -26,7 +26,7 @@ import { TRACKS, MODULES } from "../src/content/catalog.js";
 import { getLesson } from "../src/content/lessons.js";
 import { shellHtml } from "../src/shellMarkup.js";
 import { homeHtml } from "../src/pages/homeMarkup.js";
-import { anchorHeadings, learnPageHtml, treeHtml } from "../src/pages/learnMarkup.js";
+import { anchorHeadings, learnPageHtml, treeHtml, crumbsHtml, alsoFlowsHtml } from "../src/pages/learnMarkup.js";
 import { enhanceModuleHtml } from "../src/lib/markdown.js";
 import { flowHtml, tracePlayPageHtml, traceIndexHtml } from "../src/pages/traceMarkup.js";
 import { quizzesHtml } from "../src/pages/quizMarkup.js";
@@ -40,6 +40,7 @@ const updated = JSON.parse(fs.readFileSync(path.join(portal, "src/content/update
 const GEN = path.join(portal, "src/content/generated");
 const FLOW_INDEX = JSON.parse(fs.readFileSync(path.join(GEN, "index.json"), "utf8"));
 const FLOWS = Object.fromEntries(FLOW_INDEX.flows.map((f) => [f.id, JSON.parse(fs.readFileSync(path.join(GEN, "flows", `${f.id}.json`), "utf8"))]));
+const TRACE_CRUMBS = [{ label: "Home", href: "/" }, { label: "Trace the Audio Path", href: "/trace/" }, { label: "What happens when I press Play?" }];
 const QUIZZES = JSON.parse(fs.readFileSync(path.join(GEN, "quizzes.json"), "utf8"));
 // Analytics is opt-in at build time (see src/lib/analytics.js):
 //   ANALYTICS=vercel         Vercel Web Analytics page views (free on Hobby)
@@ -225,6 +226,9 @@ for (const [i, mod] of MODULES.entries()) {
         mod,
         prev,
         next,
+        prevInTrack: Boolean(prev && prev.trackId === mod.trackId),
+        nextInTrack: Boolean(next && next.trackId === mod.trackId),
+        alsoHtml: alsoFlowsHtml(FLOW_INDEX.flows, mod.id, true),
         isDone: false,
         lesson: getLesson(mod.id),
         updatedIso: modified,
@@ -260,7 +264,7 @@ for (const [i, mod] of MODULES.entries()) {
       "@type": "BreadcrumbList",
       itemListElement: [
         { "@type": "ListItem", position: 1, name: "Learn", item: `${SITE}/learn/` },
-        { "@type": "ListItem", position: 2, name: track.title, item: `${SITE}/learn/` },
+        { "@type": "ListItem", position: 2, name: track.title, item: `${SITE}/learn/#track-${track.id}` },
         { "@type": "ListItem", position: 3, name: mod.title, item: canonical },
       ],
     },
@@ -290,7 +294,7 @@ const indexBody = staticLinks(shellHtml({ page: "learn", mainHtml: `
     <h1>Learn</h1>
     <p class="lede">Each module is a written lesson on the Android audio stack (Android 15, AIDL HAL, AAOS).</p>
     ${TRACKS.map(
-      (t) => `<section class="card track-card"><h2>${escAttr(t.title)}</h2><ol>
+      (t) => `<section class="card track-card" id="track-${t.id}"><h2>${escAttr(t.title)}</h2><ol>
       ${t.modules.map((m) => `<li><a href="/learn/${m.id}/"><span class="mod-id">${m.id}</span> ${escAttr(m.title)}</a> <span class="mins">${m.mins} min</span></li>`).join("\n      ")}
     </ol></section>`,
     ).join("\n    ")}
@@ -322,6 +326,14 @@ const traceUrls = [];
       ld: [
         {
           "@context": "https://schema.org",
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            { "@type": "ListItem", position: 1, name: "Home", item: `${SITE}/` },
+            { "@type": "ListItem", position: 2, name: "Trace the Audio Path", item: `${SITE}/trace/` },
+          ],
+        },
+        {
+          "@context": "https://schema.org",
           "@type": "CollectionPage",
           name: "Trace the Audio Path",
           url: `${SITE}/trace/`,
@@ -329,7 +341,7 @@ const traceUrls = [];
           hasPart: FLOW_INDEX.flows.map((f) => ({ "@type": "TechArticle", name: f.title, url: `${SITE}/trace/play/` })),
         },
       ],
-      body: staticLinks(shellHtml({ page: "trace", mainHtml: traceIndexHtml(FLOW_INDEX.flows) })),
+      body: staticLinks(shellHtml({ page: "trace", mainHtml: traceIndexHtml(FLOW_INDEX.flows, { breadcrumbs: crumbsHtml(TRACE_CRUMBS.slice(0, 2)) }) })),
       key: "trace",
     }),
   );
@@ -363,6 +375,15 @@ const traceUrls = [];
         },
         {
           "@context": "https://schema.org",
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            { "@type": "ListItem", position: 1, name: "Home", item: `${SITE}/` },
+            { "@type": "ListItem", position: 2, name: "Trace the Audio Path", item: `${SITE}/trace/` },
+            { "@type": "ListItem", position: 3, name: flow.title, item: canonical },
+          ],
+        },
+        {
+          "@context": "https://schema.org",
           "@type": "ItemList",
           name: "Steps: AudioTrack.play() to the speaker",
           numberOfItems: flow.steps.length,
@@ -370,7 +391,7 @@ const traceUrls = [];
           itemListElement: flow.steps.map((s) => ({ "@type": "ListItem", position: s.n, name: s.title, url: `${canonical}#step-${s.n}` })),
         },
       ],
-      body: staticLinks(shellHtml({ page: "trace", mainHtml: tracePlayPageHtml(flow, { modHref: cleanHref }) })),
+      body: staticLinks(shellHtml({ page: "trace", mainHtml: tracePlayPageHtml(flow, { modHref: cleanHref, breadcrumbs: crumbsHtml(TRACE_CRUMBS) }) })),
       key: "trace/play",
     }),
   );

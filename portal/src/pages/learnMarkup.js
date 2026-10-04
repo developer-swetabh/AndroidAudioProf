@@ -72,7 +72,39 @@ export function treeHtml({ active, open, done, href }) {
     ).join("")}`;
 }
 
-export function learnPageHtml({ mod, prev, next, isDone, lesson, updatedIso, href, tree, tocHtml = "", articleHtml, flowHtml = "", flowCap = "" }) {
+/** Visual breadcrumbs: items [{label, href?}], the last one is the current page. */
+export function crumbsHtml(items, { section = false } = {}) {
+  return `<nav class="crumbs" aria-label="Breadcrumb"><ol>${items
+    .map((it, i) =>
+      i === items.length - 1
+        ? `<li><span aria-current="page">${escHtml(it.label)}</span></li>`
+        : `<li><a href="${it.href}">${escHtml(it.label)}</a></li>`,
+    )
+    .join("")}${section ? `<li class="crumb-sec" data-crumb-sec aria-hidden="true"></li>` : ""}</ol></nav>`;
+}
+
+/** "Also: related flow" under prev/next for modules that a trace explains. flows = generated index.json flows. */
+export function alsoFlowsHtml(flows, modId, clean) {
+  const rel = (flows || []).filter((f) => f.modules.includes(modId));
+  if (!rel.length) return "";
+  const url = (f) => {
+    const slug = f.id === "play-media" ? "play" : f.id;
+    return clean ? `/trace/${slug}/` : `#/trace/${slug}`;
+  };
+  return `<p class="mod-also">Also: ${rel.map((f) => `<a href="${url(f)}">Trace the Audio Path: ${escHtml(f.title)}</a>`).join(" · ")}</p>`;
+}
+
+/** Index link for a track: a fragment on the clean index page, the plain index on hash routes. */
+export const trackHref = (href, trackId) => (href("").startsWith("/") ? `${href("")}#track-${trackId}` : href(""));
+
+function navLink(side, m, inTrack, cur, href) {
+  if (!m) return "<span></span>";
+  const k = side === "prev" ? (inTrack ? `Previous in ${cur.trackTitle}` : `Previous track: ${m.trackTitle}`) : inTrack ? `Next in ${cur.trackTitle}` : `Next track: ${m.trackTitle}`;
+  const t = side === "prev" ? `← ${m.id} · ${m.title}` : `${m.id} · ${m.title} →`;
+  return `<a class="btn-ghost mod-nav-${side}" rel="${side}" href="${href(m.id)}"><span class="mod-nav-k">${escHtml(k)}</span><span class="mod-nav-t">${escHtml(t)}</span></a>`;
+}
+
+export function learnPageHtml({ mod, prev, next, prevInTrack = true, nextInTrack = true, alsoHtml = "", isDone, lesson, updatedIso, href, tree, tocHtml = "", articleHtml, flowHtml = "", flowCap = "" }) {
   const hasFlow = Boolean(lesson.diagramId);
   return `
     <div class="learn-layout">
@@ -82,6 +114,14 @@ export function learnPageHtml({ mod, prev, next, isDone, lesson, updatedIso, hre
       </details>
       <script>if (matchMedia("(min-width: 981px)").matches) document.getElementById("modDrawer").open = true;</script>
       <section class="learn-view">
+        ${crumbsHtml(
+          [
+            { label: "Learn", href: href("") },
+            { label: mod.trackTitle, href: trackHref(href, mod.trackId) },
+            { label: `${mod.id} ${mod.title}` },
+          ],
+          { section: true },
+        )}
         <div class="module-header">
           <span class="badge">Module ${mod.id}</span>
           <span class="layer-badge">${mod.mins} min · ${mod.trackTitle}</span>
@@ -107,11 +147,12 @@ export function learnPageHtml({ mod, prev, next, isDone, lesson, updatedIso, hre
           .join("")}</p>
         <nav class="learn-toc" id="learnToc" aria-label="In this module">${tocHtml}</nav>
         <article class="md-body" id="md">${articleHtml}</article>
-        <div class="module-nav">
-          ${prev ? `<a class="btn-ghost" href="${href(prev.id)}">← ${prev.title}</a>` : "<span></span>"}
+        <nav class="module-nav" aria-label="Module navigation">
+          ${navLink("prev", prev, prevInTrack, mod, href)}
           <button class="btn" id="markDone" type="button">${isDone ? "Completed ✓" : "Mark complete"}</button>
-          ${next ? `<a class="btn-ghost" href="${href(next.id)}">${next.title} →</a>` : "<span></span>"}
-        </div>
+          ${navLink("next", next, nextInTrack, mod, href)}
+        </nav>
+        ${alsoHtml}
       </section>
     </div>`;
 }
