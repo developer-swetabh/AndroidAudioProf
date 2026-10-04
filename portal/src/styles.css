@@ -4726,3 +4726,7 @@ html:not(.js) .learn-view > .crumbs {
     order: 3;
   }
 }
+/* Anything scrolled to inside a module clears the header and the sticky breadcrumb. */
+.md-body :is(.aa-quiz, .practice-item, .aa-flow, [id]) {
+  scroll-margin-top: calc(var(--nav-h) + 48px);
+}
