@@ -38,7 +38,7 @@ export function scanIslands(root = document) {
         hydrate(e.target);
       }
     },
-    { rootMargin: "300px 0px" },
+    { rootMargin: "800px 0px" },
   );
   els.forEach((el) => io.observe(el));
 }

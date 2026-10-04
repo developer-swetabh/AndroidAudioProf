@@ -94,6 +94,15 @@ Reference implementation: `hardware/interfaces/audio/aidl/default/`.
 
 ### Data path (this is the Android 15 sentence)
 
+Steps 10 to 12 of the playback trace cross this boundary: libaudiohal writes the data FMQ and sends `burst`, the HAL worker drains it, and the backend writes ALSA.
+
+```aa-flow
+# Interactive step player on the site: https://androidaudio.vercel.app/trace/play/
+src: play-media
+steps: 10-12
+```
+
+
 ```text
 IModule.openOutputStream(...)
         ↓

@@ -28,6 +28,7 @@ import { shellHtml } from "../src/shellMarkup.js";
 import { homeHtml } from "../src/pages/homeMarkup.js";
 import { anchorHeadings, learnPageHtml, treeHtml } from "../src/pages/learnMarkup.js";
 import { enhanceModuleHtml } from "../src/lib/markdown.js";
+import { flowHtml, tracePlayPageHtml, traceIndexHtml } from "../src/pages/traceMarkup.js";
 
 const portal = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dist = path.join(portal, "dist");
@@ -35,6 +36,9 @@ const SITE = "https://androidaudio.vercel.app";
 const SITE_NAME = "Android Audio Engineering";
 const REPO = "https://github.com/developer-swetabh/AndroidAudioProf";
 const updated = JSON.parse(fs.readFileSync(path.join(portal, "src/content/updated.json"), "utf8"));
+const GEN = path.join(portal, "src/content/generated");
+const FLOW_INDEX = JSON.parse(fs.readFileSync(path.join(GEN, "index.json"), "utf8"));
+const FLOWS = Object.fromEntries(FLOW_INDEX.flows.map((f) => [f.id, JSON.parse(fs.readFileSync(path.join(GEN, "flows", `${f.id}.json`), "utf8"))]));
 // Analytics is opt-in at build time (see src/lib/analytics.js):
 //   ANALYTICS=vercel         Vercel Web Analytics page views (free on Hobby)
 //   ANALYTICS=vercel+events  also custom events (Vercel custom events need a paid plan)
@@ -93,6 +97,8 @@ function staticLinks(html) {
   return html.replace(/href="#\/([^"]*)"/g, (all, route) => {
     const m = /^learn(?:\/([\w-]+))?\/?$/.exec(route);
     if (m) return `href="${m[1] ? `/learn/${m[1]}/` : "/learn/"}"`;
+    const t = /^trace(?:\/([\w-]+))?\/?$/.exec(route);
+    if (t) return `href="${t[1] ? `/trace/${t[1]}/` : "/trace/"}"`;
     return `href="/#/${route}"`;
   });
 }
@@ -195,7 +201,12 @@ for (const [i, mod] of MODULES.entries()) {
   const next = MODULES[i + 1];
   const track = TRACKS.find((t) => t.id === mod.trackId);
   const title = `${mod.title} (Module ${mod.id}) · ${SITE_NAME}`;
-  const anchored = anchorHeadings(enhanceModuleHtml(renderMd(md)), (sec) => `#${sec}`);
+  const embedFlow = ({ src, from, to }) => {
+    const f = FLOWS[src];
+    if (!f) throw new Error(`prerender: module ${mod.id} embeds unknown flow ${src}`);
+    return flowHtml(f, { variant: "embed", from: from || 1, to: to || f.steps.length, modHref: cleanHref });
+  };
+  const anchored = anchorHeadings(enhanceModuleHtml(renderMd(md), { flow: embedFlow }), (sec) => `#${sec}`);
   const tocHtml = anchored.tocHtml;
   // Same wrapper the app adds (lib/markdown.js wrapTables), so tables do not move on boot.
   const articleHtml = anchored.html.replace(/<table>/g, '<div class="table-wrap" tabindex="0"><table>').replace(/<\/table>/g, "</table></div>");
@@ -290,6 +301,75 @@ write(
 );
 urls.splice(1, 0, { loc: `${SITE}/learn/`, lastmod: urls[0].lastmod });
 
+// Trace the Audio Path: /trace/ and one page per flow
+const traceUrls = [];
+{
+  const lastmod = Object.values(updated).sort().pop();
+  write(
+    "trace/index.html",
+    page({
+      title: `Trace the Audio Path: Android audio, step by step · ${SITE_NAME}`,
+      description: "Interactive, step-by-step traces through the Android 15 audio stack: process, thread, data vs control path and pinned AOSP source for every step.",
+      canonical: `${SITE}/trace/`,
+      ogType: "website",
+      ld: [
+        {
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          name: "Trace the Audio Path",
+          url: `${SITE}/trace/`,
+          isPartOf: { "@type": "Course", name: SITE_NAME, url: `${SITE}/learn/` },
+          hasPart: FLOW_INDEX.flows.map((f) => ({ "@type": "TechArticle", name: f.title, url: `${SITE}/trace/play/` })),
+        },
+      ],
+      body: staticLinks(shellHtml({ page: "trace", mainHtml: traceIndexHtml(FLOW_INDEX.flows) })),
+      key: "trace",
+    }),
+  );
+  traceUrls.push({ loc: `${SITE}/trace/`, lastmod });
+  const flow = FLOWS["play-media"];
+  const canonical = `${SITE}/trace/play/`;
+  write(
+    "trace/play/index.html",
+    page({
+      title: `What happens when I press Play? AudioTrack to speaker in 14 steps · ${SITE_NAME}`,
+      description: "Trace one AudioTrack from play() to the speaker on Android 15: JNI, Binder createTrack, AudioPolicy routing, MixerThread, FastMixer, AIDL HAL FMQ bursts, TinyALSA, ALSA/ASoC, DAC.",
+      canonical,
+      modified: lastmod,
+      ld: [
+        {
+          "@context": "https://schema.org",
+          "@type": "TechArticle",
+          headline: flow.title,
+          name: "Trace the Audio Path: What happens when I press Play?",
+          description: flow.summary,
+          inLanguage: "en",
+          proficiencyLevel: "Expert",
+          dependencies: `Android 15 AOSP (${flow.tag}), AIDL audio HAL`,
+          dateModified: lastmod,
+          author,
+          publisher: author,
+          isPartOf: { "@type": "Course", name: SITE_NAME, url: `${SITE}/learn/` },
+          mainEntityOfPage: canonical,
+          url: canonical,
+          image: `${SITE}/og-image.png`,
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          name: "Steps: AudioTrack.play() to the speaker",
+          numberOfItems: flow.steps.length,
+          itemListOrder: "https://schema.org/ItemListOrderAscending",
+          itemListElement: flow.steps.map((s) => ({ "@type": "ListItem", position: s.n, name: s.title, url: `${canonical}#step-${s.n}` })),
+        },
+      ],
+      body: staticLinks(shellHtml({ page: "trace", mainHtml: tracePlayPageHtml(flow, { modHref: cleanHref }) })),
+      key: "trace/play",
+    }),
+  );
+  traceUrls.push({ loc: canonical, lastmod });
+}
+
 // Home: prerendered home page; also advertises the course (same Course entity).
 // Hash links stay as-is here (this document is the SPA shell for /#/… routes).
 fs.writeFileSync(
@@ -303,6 +383,7 @@ fs.writeFileSync(
 );
 
 // sitemap.xml
+urls.splice(2, 0, ...traceUrls);
 const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((u) => `  <url><loc>${u.loc}</loc>${u.lastmod ? `<lastmod>${u.lastmod}</lastmod>` : ""}</url>`).join("\n")}
@@ -327,11 +408,11 @@ const beasties = new Beasties({
   fonts: false,
   logLevel: "warn",
 });
-const htmlFiles = ["index.html", "learn/index.html", ...MODULES.map((m) => `learn/${m.id}/index.html`)];
+const htmlFiles = ["index.html", "learn/index.html", "trace/index.html", "trace/play/index.html", ...MODULES.map((m) => `learn/${m.id}/index.html`)];
 for (const rel of htmlFiles) {
   const file = path.join(dist, rel);
   fs.writeFileSync(file, await beasties.process(fs.readFileSync(file, "utf8")));
 }
 
 if (analyticsSnippet) console.log(`analytics: Vercel Web Analytics injected (${ANALYTICS})`);
-console.log(`prerendered home + ${MODULES.length} module pages + /learn/, critical CSS inlined in ${htmlFiles.length} pages, sitemap with ${urls.length} URLs, 404.html`);
+console.log(`prerendered home + ${MODULES.length} module pages + /learn/ + /trace/ + /trace/play/, critical CSS inlined in ${htmlFiles.length} pages, sitemap with ${urls.length} URLs, 404.html`);

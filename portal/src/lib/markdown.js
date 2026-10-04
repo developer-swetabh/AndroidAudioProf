@@ -43,8 +43,28 @@ export function rewriteCurriculumLinks(html) {
   });
 }
 
-export function enhanceModuleHtml(html) {
+const decodeEntities = (s) =>
+  String(s).replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+
+/** ```aa-flow fenced block (readable YAML on GitHub) → widget options. */
+export function parseFlowBlock(body) {
+  const t = decodeEntities(body);
+  const src = (/^\s*src:\s*([\w-]+)/m.exec(t) || [])[1] || "";
+  const r = /^\s*steps:\s*(\d+)(?:-(\d+))?/m.exec(t);
+  return { src, from: r ? +r[1] : 0, to: r ? +(r[2] || r[1]) : 0 };
+}
+
+/**
+ * opts.flow({src, from, to}) renders the static widget (prerender). Without it a
+ * placeholder is emitted and src/elements/aa-flow.js renders it on hydration.
+ */
+export function enhanceModuleHtml(html, opts = {}) {
   let h = rewriteCurriculumLinks(html);
+  h = h.replace(/<pre><code class="language-aa-flow">([\s\S]*?)<\/code><\/pre>/g, (_, body) => {
+    const b = parseFlowBlock(body);
+    if (opts.flow) return opts.flow(b);
+    return `<div class="aa-flow aa-flow-embed aa-flow-ph" data-island="flow" data-flow="${esc(b.src)}" data-from="${b.from || ""}" data-to="${b.to || ""}" data-variant="embed" data-render="1"><p class="muted">Loading the interactive trace…</p></div>`;
+  });
   h = h.replace(
     /<h2[^>]*>Short Answer<\/h2>([\s\S]*?)(?=<h2|$)/i,
     (_, body) =>

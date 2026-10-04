@@ -35,6 +35,8 @@
         try { t = (JSON.parse(localStorage.getItem("aaep.v1") || "{}") || {}).theme; } catch (e) {}
         if (t !== "light" && t !== "dark") t = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
         document.documentElement.dataset.theme = t;
+        // Widgets lay out as interactive players only when JS runs (no-JS keeps the static lists).
+        document.documentElement.classList.add("js");
       })();
     </script>
     <!-- Self-hosted variable fonts (public/fonts, SIL OFL 1.1). No third-party font requests. -->

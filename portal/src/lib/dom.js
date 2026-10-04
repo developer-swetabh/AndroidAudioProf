@@ -18,6 +18,8 @@ export function onCleanPath() {
 export function cleanTarget(hash) {
   const m = /^#\/learn(?:\/([\w-]+))?\/?$/.exec(hash);
   if (m) return m[1] ? `/learn/${m[1]}/` : "/learn/";
+  const t = /^#\/trace(?:\/([\w-]+))?\/?$/.exec(hash);
+  if (t) return t[1] ? `/trace/${t[1]}/` : "/trace/";
   return `/${hash}`;
 }
 
@@ -54,5 +56,7 @@ export function parseHash() {
   // Prerendered clean paths: /learn/ and /learn/<id>/
   const m = /^\/learn(?:\/([\w-]+))?\/?$/.exec(location.pathname);
   if (m) return { page: "learn", arg: m[1] || "" };
+  const t = /^\/trace(?:\/([\w-]+))?\/?$/.exec(location.pathname);
+  if (t) return { page: "trace", arg: t[1] || "" };
   return { page: "home", arg: "" };
 }

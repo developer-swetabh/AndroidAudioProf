@@ -119,6 +119,7 @@ export async function openPalette() {
   closeOverlays();
   const items = [
     ...NAV.map((n) => ({ t: `Go to ${n.label}`, h: n.id, k: "page" })),
+    { t: "Trace the Audio Path: What happens when I press Play?", h: "trace/play", k: "trace" },
     ...MODULES.map((m) => ({ t: `Module ${m.id}: ${m.title}`, h: `learn/${m.id}`, k: "learn" })),
     ...DUMP_SCENARIOS.map((s) => ({ t: `Dump: ${s.name}`, h: `workbench/dump/flinger/${s.id}`, k: "dump" })),
     ...RCA_CASES.map((c) => ({ t: `RCA ${c.id}: ${c.title}`, h: `workbench/rca/${c.id}`, k: "rca" })),
