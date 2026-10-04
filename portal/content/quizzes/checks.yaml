@@ -1,0 +1,116 @@
+# Learning checks (plan §4.9). Single choice; the answer is revealed only after an attempt.
+# Placement is by ```aa-quiz blocks in modules/*.md; every module listed here must embed the item.
+- id: q-routing-when
+  label: "Q1"
+  modules: ["02a", "03"]
+  stem: "When is `getOutputForAttr` called for a new `AudioTrack`?"
+  choices:
+    - { id: a, text: "In `AudioTrack.play()`", feedback: "`play()` ends in `startOutput`, which activates the track on the output it already has. It does not choose an output." }
+    - { id: b, text: "By the app, through `IAudioPolicyService`, before `createTrack`", feedback: "The app never calls AudioPolicy for this. Its only Binder target is `IAudioFlinger.createTrack`." }
+    - { id: c, text: "Inside `AudioFlinger::createTrack`, during construction", correct: true }
+    - { id: d, text: "In the first `threadLoop_write`", feedback: "By the first write the track has long been attached to an output thread." }
+  explain: "`AudioFlinger::createTrack` calls `AudioSystem::getOutputForAttr` before it creates the track on that output's thread. So routing is decided when the `AudioTrack` is built, before `play()`."
+  sources:
+    - { repo: frameworks/av, path: services/audioflinger/AudioFlinger.cpp, symbol: "lStatus = AudioSystem::getOutputForAttr(&localAttr, &output.outputId", label: "createTrack calls getOutputForAttr" }
+  reread: "02a#sec-step-4-audiopolicy-the-routing-decision"
+
+- id: q-standby-exit
+  label: "Q2"
+  modules: ["02a", "06", "08"]
+  stem: "A MixerThread went into standby after being idle. The app calls `play()` and writes again. How does the existing HAL stream start playing?"
+  choices:
+    - { id: a, text: "`IModule.openOutputStream` reopens the stream", feedback: "`openOutputStream` ran once, in `openOutput_l`, when AudioPolicy opened the output. Standby does not close the stream." }
+    - { id: b, text: "`Command.start`, then `Command.burst`, on the existing stream's command FMQ", correct: true }
+    - { id: c, text: "`IStreamOut.close`, then reopen", feedback: "The stream is closed only when AudioPolicy closes the output." }
+    - { id: d, text: "Nothing until a new audio patch is created", feedback: "Patches change routing, not standby." }
+  explain: "`StreamHalAidl::transfer` sends `start` when the stream state is `STANDBY` (it expects `IDLE` back), then writes the data FMQ and sends `burst`."
+  sources:
+    - { repo: frameworks/av, path: media/libaudiohal/impl/StreamHalAidl.cpp, symbol: "status_t StreamHalAidl::transfer(", before: 0, after: 29, label: "transfer(): start if STANDBY, then burst" }
+  reread: "06#sec-4-standby"
+
+- id: q-standby-sequence
+  label: "Q3"
+  modules: ["06", "08"]
+  stem: "AudioFlinger puts an ACTIVE output stream into standby. What does libaudiohal send to an AIDL HAL?"
+  choices:
+    - { id: a, text: "`standby`", feedback: "The stream state machine accepts `standby` only in `IDLE`, so a single command is not enough from `ACTIVE`." }
+    - { id: b, text: "`pause`, `flush`, then `standby`", correct: true }
+    - { id: c, text: "`drain`, then `close`", feedback: "Standby never closes the stream." }
+    - { id: d, text: "`IModule.setAudioPatch` to an empty sink", feedback: "Patches are routing, not stream state." }
+  explain: "`stream-out-sm.gv` only allows `IDLE → STANDBY`, so `StreamHalAidl::standby()` walks `ACTIVE → PAUSED → IDLE → STANDBY` with `pause`, `flush` and `standby`."
+  sources:
+    - { repo: frameworks/av, path: media/libaudiohal/impl/StreamHalAidl.cpp, symbol: "status_t StreamHalAidl::standby() {", before: 0, after: 29, label: "StreamHalAidl::standby()" }
+    - { repo: hardware/interfaces, path: audio/aidl/android/hardware/audio/core/stream-out-sm.gv, symbol: "IDLE -> STANDBY [label=\"standby\"];", before: 3, after: 3, label: "stream-out-sm.gv" }
+  reread: "08#sec-stream-states-from-streamdescriptor-aidl"
+
+- id: q-fastmixer-writer
+  label: "Q4"
+  modules: ["02a", "06"]
+  stem: "On a primary output that has a FastMixer, which thread actually writes to the HAL?"
+  choices:
+    - { id: a, text: "`AudioOut_<id>` (the MixerThread)", feedback: "With a FastMixer, the MixerThread's sink is a MonoPipe, not the HAL." }
+    - { id: b, text: "The `FastMixer` thread; the MixerThread writes its normal mix into a MonoPipe", correct: true }
+    - { id: c, text: "A separate PlaybackThread for fast tracks", feedback: "FastMixer is a helper thread owned by the MixerThread, not another PlaybackThread." }
+    - { id: d, text: "The app's own thread (MMAP)", feedback: "That only applies to AAudio MMAP streams, which have no AudioFlinger mix at all." }
+  explain: "With a FastMixer, `mNormalSink` is the MonoPipe and `FastMixer::onWork` writes the HAL sink every period. FastMixer is a helper `FastThread` owned by the MixerThread."
+  sources:
+    - { repo: frameworks/av, path: services/audioflinger/Threads.cpp, symbol: "mNormalSink = initFastMixer ? mPipeSink : mOutputSink;", before: 9, after: 2, label: "mNormalSink: pipe or HAL sink" }
+    - { repo: frameworks/av, path: services/audioflinger/fastpath/FastMixer.cpp, symbol: "const ssize_t framesWritten = mOutputSink->write(buffer, frameCount);", before: 6, label: "FastMixer writes the HAL sink" }
+  reread: "06#sec-8-fastmixer-and-logging"
+
+- id: q-headset-patch
+  label: "Q5"
+  modules: ["03", "07"]
+  stem: "A phone user plugs in wired headphones, on the same HAL module as the speaker. What changes in AudioFlinger and the HAL?"
+  choices:
+    - { id: a, text: "The speaker stream closes and a headset stream opens", feedback: "Same module and mix port: the existing stream is rerouted, not replaced." }
+    - { id: b, text: "Policy installs a new audio patch: `createAudioPatch` → `PlaybackThread::createAudioPatch_l` → `IModule.setAudioPatch`. Same stream.", correct: true }
+    - { id: c, text: "Nothing; the HAL detects the jack and reroutes by itself", feedback: "Routing is decided by AudioPolicy and applied through a patch. The HAL is told, it does not decide." }
+    - { id: d, text: "A DuplicatingThread is created", feedback: "Duplication is for playing to two outputs at once, not for a device switch." }
+  explain: "Device switches go through audio patches. A new output (and `openOutputStream`) is needed only for a device on another module or mix port, such as A2DP, USB or `r_submix` (`checkOutputsForDevice`)."
+  sources:
+    - { repo: frameworks/av, path: services/audioflinger/Threads.cpp, symbol: "status = hwDevice->createAudioPatch(patch->num_sources,", before: 2, after: 4, label: "PlaybackThread::createAudioPatch_l() → hwDevice->createAudioPatch" }
+    - { repo: frameworks/av, path: media/libaudiohal/impl/Hal2AidlMapper.cpp, symbol: "mModule->setAudioPatch(patch, &patch)));", before: 4, after: 2, label: "libaudiohal → IModule.setAudioPatch" }
+  reread: "07#sec-5-patches"
+
+- id: q-pcm-processes
+  label: "Q6"
+  modules: ["02a"]
+  stem: "On a phone, which processes do the PCM samples of a music track pass through on their way to the speaker?"
+  choices:
+    - { id: a, text: "app → system_server → audioserver → HAL", feedback: "`system_server` (AudioService) handles focus and volume. PCM never goes there." }
+    - { id: b, text: "app → audioserver → vendor HAL process → kernel", correct: true }
+    - { id: c, text: "app → audioserver (AudioPolicy) → AudioFlinger → HAL", feedback: "AudioPolicy decides routing; it never touches samples." }
+    - { id: d, text: "app → HAL directly", feedback: "Only AAudio MMAP exclusive streams write the HAL's buffer directly." }
+  explain: "The app writes shared memory that AudioFlinger reads. AudioFlinger bursts over FMQ to the vendor HAL process, and the HAL calls the kernel. AudioService (`system_server`) and AudioPolicy handle control only. AAudio MMAP exclusive is the special case where the app writes the HAL's mmap buffer."
+  reread: "02a#sec-boundary-types-memorize-these"
+
+- id: q-aaos-duck
+  label: "Q7"
+  modules: ["12", "14"]
+  stem: "AAOS 15 with separate media and navigation buses: a navigation prompt starts over music. Who tells the hardware to duck the media bus?"
+  choices:
+    - { id: a, text: "AudioFlinger lowers the media track's volume", feedback: "The buses are separate outputs. Hardware ducking happens below AudioFlinger." }
+    - { id: b, text: "AudioPolicyManager's volume curves", feedback: "Volume curves map indexes to gain; they do not send ducking signals to the car's amplifier." }
+    - { id: c, text: "CarAudioService (in `com.android.car`), through `IAudioControl.onDevicesToDuckChange`", correct: true }
+    - { id: d, text: "The navigation app calls `setVolume` on the media player", feedback: "Apps do not control another app's player." }
+  explain: "`CarDucking` (in CarAudioService, process `com.android.car`) sends the devices to duck to the AudioControl HAL, and the HAL or DSP applies it. This needs `audioUseHalDuckingSignals` (default true; the car audio configuration can override it) and an AudioControl HAL that reports the ducking feature. The signal is a recommendation."
+  sources:
+    - { repo: packages/services/Car, path: service/src/com/android/car/audio/CarDucking.java, symbol: "mAudioControlWrapper.onDevicesToDuckChange(newDuckingInfos);", before: 8, after: 2, label: "CarDucking → onDevicesToDuckChange" }
+    - { repo: packages/services/Car, path: service/res/values/config.xml, symbol: "<bool name=\"audioUseHalDuckingSignals\">true</bool>", before: 6, after: 0, label: "audioUseHalDuckingSignals default" }
+    - { repo: hardware/interfaces, path: automotive/audiocontrol/aidl/android/hardware/automotive/audiocontrol/IAudioControl.aidl, symbol: "oneway void onDevicesToDuckChange(in DuckingInfo[] duckingInfos);", before: 10, after: 0, label: "IAudioControl.onDevicesToDuckChange" }
+  reread: "14#sec-3-hardware-ducking-needs-a-control-surface"
+
+- id: q-hal-xrun
+  label: "Q8"
+  modules: ["08", "15"]
+  stem: "AudioFlinger's dump shows the track ACTIVE with `underruns 0`, but the HAL reply's `xrunFrames` keeps rising and there are audible glitches. Who is late?"
+  choices:
+    - { id: a, text: "The app", feedback: "A late app shows up as track underruns in AudioFlinger, and those are 0." }
+    - { id: b, text: "AudioPolicy", feedback: "AudioPolicy is not on the per-period path at all." }
+    - { id: c, text: "Below AudioFlinger: the HAL worker or its backend is not consuming bursts on time", correct: true }
+    - { id: d, text: "The DAC", feedback: "A DAC fault sounds like silence or distortion, not an XRUN count in the HAL reply." }
+  explain: "App lateness shows as track underruns. HAL-side `xrunFrames` with a healthy mix above points to the HAL process: thread priority, a blocking backend, or not draining the FMQ. Next: Perfetto on the HAL `writer` thread, scheduling, and the `/proc/asound` XRUN state."
+  sources:
+    - { repo: hardware/interfaces, path: audio/aidl/android/hardware/audio/core/StreamDescriptor.aidl, symbol: "int xrunFrames;", before: 8, after: 0, label: "Reply.xrunFrames" }
+  reread: "15#sec-4-who-is-late-counter-discipline"

@@ -300,6 +300,15 @@ No output found for attributes (look at rate/channel/format)
 | Assuming stream-type volume on AAOS | Volume groups + fixed volume are common |
 | Reading only one dump | You cannot see the handshake |
 
+## Check yourself
+
+Pick an answer before you look. The explanation, with the Android 15 source line, opens after you choose.
+
+```aa-quiz
+# 2 single-choice checks (portal/content/quizzes/checks.yaml), interactive on the site: https://androidaudio.vercel.app/learn/03/#sec-check-yourself
+ids: [q-routing-when, q-headset-patch]
+```
+
 ## Practice
 
 **Question:** `dumpsys media.audio_policy` shows MEDIA → `AUDIO_DEVICE_OUT_SPEAKER`. `dumpsys media.audio_flinger` shows the only ACTIVE track on a thread whose device is `AUDIO_DEVICE_OUT_BUS` `bus0_media_out`. Music is heard in the cabin.

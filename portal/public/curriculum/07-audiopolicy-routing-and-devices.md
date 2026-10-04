@@ -391,6 +391,15 @@ getOutputForAttr logs “no output found”
 | Forgetting profiles when adding 24-bit / 96 kHz | Create fails or falls back oddly |
 | Thinking `AUDIO_DEVICE_OUT_SPEAKER` is the cabin on AAOS | Cabin is usually BUS devices |
 
+## Check yourself
+
+Pick an answer before you look. The explanation, with the Android 15 source line, opens after you choose.
+
+```aa-quiz
+# 1 single-choice check (portal/content/quizzes/checks.yaml), interactive on the site: https://androidaudio.vercel.app/learn/07/#sec-check-yourself
+ids: [q-headset-patch]
+```
+
 ## Practice
 
 You add a new chime usage and a new bus `bus8_chime_out` in `car_audio_configuration.xml`. Media still plays. Chime is silent. Policy dump shows no device with that address.

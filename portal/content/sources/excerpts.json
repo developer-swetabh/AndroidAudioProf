@@ -209,6 +209,18 @@
    "    *outStream = stream;"
   ]
  },
+ "frameworks/av:media/libaudiohal/impl/Hal2AidlMapper.cpp#mModule->setAudioPatch(patch, &patch)));": {
+  "start": 202,
+  "lines": [
+   "    RETURN_STATUS_IF_ERROR(fillPortConfigs(",
+   "                    mixPortConfigs, devicePortIds, mixPortConfigIds, nullptr));",
+   "    if (existingPatchIt != mPatches.end()) {",
+   "        RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(",
+   "                        mModule->setAudioPatch(patch, &patch)));",
+   "        existingPatchIt->second = patch;",
+   "    } else {"
+  ]
+ },
  "frameworks/av:media/libaudiohal/impl/StreamHalAidl.cpp#if (!mContext.getCommandMQ()->writeBlocking(&command, 1)) {": {
   "start": 666,
   "lines": [
@@ -225,6 +237,41 @@
    "            AUGMENT_LOG(E, \"failed to read from reply MQ, command %s\", command.toString().c_str());",
    "            return NOT_ENOUGH_DATA;",
    "        }"
+  ]
+ },
+ "frameworks/av:media/libaudiohal/impl/StreamHalAidl.cpp#status_t StreamHalAidl::standby() {": {
+  "start": 222,
+  "lines": [
+   "status_t StreamHalAidl::standby() {",
+   "    AUGMENT_LOG(D);",
+   "    TIME_CHECK();",
+   "    if (!mStream) return NO_INIT;",
+   "    const auto state = getState();",
+   "    StreamDescriptor::Reply reply;",
+   "    switch (state) {",
+   "        case StreamDescriptor::State::ACTIVE:",
+   "        case StreamDescriptor::State::DRAINING:",
+   "        case StreamDescriptor::State::TRANSFERRING:",
+   "            RETURN_STATUS_IF_ERROR(pause(&reply));",
+   "            if (reply.state != StreamDescriptor::State::PAUSED &&",
+   "                    reply.state != StreamDescriptor::State::DRAIN_PAUSED &&",
+   "                    reply.state != StreamDescriptor::State::TRANSFER_PAUSED &&",
+   "                    (state != StreamDescriptor::State::DRAINING ||",
+   "                        reply.state != StreamDescriptor::State::IDLE)) {",
+   "                AUGMENT_LOG(E, \"unexpected stream state: %s (expected PAUSED)\",",
+   "                            toString(reply.state).c_str());",
+   "                return INVALID_OPERATION;",
+   "            }",
+   "            FALLTHROUGH_INTENDED;",
+   "        case StreamDescriptor::State::PAUSED:",
+   "        case StreamDescriptor::State::DRAIN_PAUSED:",
+   "        case StreamDescriptor::State::TRANSFER_PAUSED:",
+   "            if (mIsInput) return flush();",
+   "            RETURN_STATUS_IF_ERROR(flush(&reply));",
+   "            if (reply.state != StreamDescriptor::State::IDLE) {",
+   "                AUGMENT_LOG(E, \"unexpected stream state: %s (expected IDLE)\",",
+   "                            toString(reply.state).c_str());",
+   "                return INVALID_OPERATION;"
   ]
  },
  "frameworks/av:media/libaudiohal/impl/StreamHalAidl.cpp#status_t StreamHalAidl::transfer(": {
@@ -576,6 +623,18 @@
    "                if (status == NO_ERROR) {"
   ]
  },
+ "frameworks/av:services/audioflinger/Threads.cpp#status = hwDevice->createAudioPatch(patch->num_sources,": {
+  "start": 5042,
+  "lines": [
+   "    if (mOutput->audioHwDev->supportsAudioPatches()) {",
+   "        sp<DeviceHalInterface> hwDevice = mOutput->audioHwDev->hwDevice();",
+   "        status = hwDevice->createAudioPatch(patch->num_sources,",
+   "                                            patch->sources,",
+   "                                            patch->num_sinks,",
+   "                                            patch->sinks,",
+   "                                            handle);"
+  ]
+ },
  "frameworks/av:services/audioflinger/Threads.cpp#void MixerThread::threadLoop_mix()": {
   "start": 5549,
   "lines": [
@@ -891,6 +950,20 @@
    "    /**"
   ]
  },
+ "hardware/interfaces:audio/aidl/android/hardware/audio/core/StreamDescriptor.aidl#int xrunFrames;": {
+  "start": 411,
+  "lines": [
+   "         * can not be determined, this field must be set to 'LATENCY_UNKNOWN'.",
+   "         */",
+   "        int latencyMs;",
+   "        /**",
+   "         * Number of frames lost due to an underrun (for input streams),",
+   "         * or not provided on time (for output streams) for the **previous**",
+   "         * transfer operation.",
+   "         */",
+   "        int xrunFrames;"
+  ]
+ },
  "hardware/interfaces:audio/aidl/android/hardware/audio/core/StreamDescriptor.aidl#parcelable Reply {": {
   "start": 353,
   "lines": [
@@ -919,6 +992,18 @@
    "         */",
    "        int fmqByteCount;",
    "        /**"
+  ]
+ },
+ "hardware/interfaces:audio/aidl/android/hardware/audio/core/stream-out-sm.gv#IDLE -> STANDBY [label=\"standby\"];": {
+  "start": 26,
+  "lines": [
+   "    I -> STANDBY;",
+   "    STANDBY -> IDLE [label=\"start\"];           // consumer -> active",
+   "    STANDBY -> PAUSED [label=\"burst\"];         // producer -> active",
+   "    IDLE -> STANDBY [label=\"standby\"];         // consumer -> passive",
+   "    IDLE -> ACTIVE [label=\"burst\"];            // producer -> active",
+   "    ACTIVE -> ACTIVE [label=\"burst\"];",
+   "    ACTIVE -> PAUSED [label=\"pause\"];          // consumer -> passive (not consuming)"
   ]
  },
  "hardware/interfaces:audio/aidl/default/Stream.cpp#bool StreamOutWorkerLogic::write(size_t clientSize": {
@@ -1036,6 +1121,50 @@
    "        }",
    "    }",
    "    *actualFrameCount = frameCount;"
+  ]
+ },
+ "hardware/interfaces:automotive/audiocontrol/aidl/android/hardware/automotive/audiocontrol/IAudioControl.aidl#oneway void onDevicesToDuckChange(in DuckingInfo[] duckingInfos);": {
+  "start": 86,
+  "lines": [
+   "",
+   "    /**",
+   "     * Notifies HAL of changes in output devices that the HAL should apply ducking to.",
+   "     *",
+   "     * This will be called in response to changes in audio focus, and will include a",
+   "     * {@link DuckingInfo} object per audio zone that experienced a change in audo focus.",
+   "     *",
+   "     * @param duckingInfos an array of {@link DuckingInfo} objects for the audio zones where audio",
+   "     * focus has changed.",
+   "     */",
+   "    oneway void onDevicesToDuckChange(in DuckingInfo[] duckingInfos);"
+  ]
+ },
+ "packages/services/Car:service/res/values/config.xml#<bool name=\"audioUseHalDuckingSignals\">true</bool>": {
+  "start": 43,
+  "lines": [
+   "    <bool name=\"audioUseCarVolumeGroupMuting\">false</bool>",
+   "",
+   "    <!--  Configuration to enable IAudioControl#onDevicesToDuckChange API to inform HAL when to",
+   "          duck. If this is set to true, the API will receive signals indicating which output devices",
+   "          to duck as well as what usages are currently holding focus. If set to false, the API will",
+   "          not be called. -->",
+   "    <bool name=\"audioUseHalDuckingSignals\">true</bool>"
+  ]
+ },
+ "packages/services/Car:service/src/com/android/car/audio/CarDucking.java#mAudioControlWrapper.onDevicesToDuckChange(newDuckingInfos);": {
+  "start": 75,
+  "lines": [
+   "        synchronized (mLock) {",
+   "            List<CarDuckingInfo> newDuckingInfos = new ArrayList<>(audioZoneIds.length);",
+   "            for (int i = 0; i < audioZoneIds.length; i++) {",
+   "                int zoneId = audioZoneIds[i];",
+   "                List<AudioFocusInfo> focusHolders = focusHoldersByZoneId.get(zoneId);",
+   "                CarDuckingInfo newDuckingInfo = updateDuckingForZoneIdLocked(zoneId, focusHolders);",
+   "                newDuckingInfos.add(newDuckingInfo);",
+   "            }",
+   "            mAudioControlWrapper.onDevicesToDuckChange(newDuckingInfos);",
+   "        }",
+   "    }"
   ]
  },
  "system/media:alsa_utils/alsa_device_proxy.c#int proxy_write_with_retries(": {

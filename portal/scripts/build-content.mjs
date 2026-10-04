@@ -210,6 +210,7 @@ for (const { file, data: s } of content.scenarios) {
 
 // ---------- embeds in the textbook
 const EMBED = /```(aa-flow|aa-quiz)\n([\s\S]*?)```/g;
+const placed = new Set(); // "quizId@module"
 for (const [id, md] of mdOf) {
   for (const m of md.matchAll(EMBED)) {
     const w = `modules/${MODULES.find((x) => x.id === id).file} ${m[1]}`;
@@ -227,12 +228,15 @@ for (const [id, md] of mdOf) {
       const ids = (/^ids:\s*\[([^\]]*)\]/m.exec(body) || [])[1];
       if (!ids) err(w, "aa-quiz needs ids: [q-…]");
       for (const q of (ids || "").split(",").map((x) => x.trim()).filter(Boolean)) {
+        placed.add(`${q}@${id}`);
         if (!quizzes[q]) err(w, `unknown quiz id ${q}`);
         else if (!quizzes[q].modules.includes(id)) err(w, `quiz ${q} does not list module ${id}`);
       }
     }
   }
 }
+
+for (const q of Object.values(quizzes)) for (const m of q.modules) if (!placed.has(`${q.id}@${m}`)) err(`quiz ${q.id}`, `lists module ${m} but no \`\`\`aa-quiz block there embeds it`);
 
 // ---------- unused lock entries (stale content) are reported, not fatal
 const used = new Set(collectSourceRefs(content).map(({ ref }) => refKey(ref)));

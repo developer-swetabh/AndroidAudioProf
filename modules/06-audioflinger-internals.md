@@ -377,6 +377,15 @@ The tee sink (userdebug/eng only; source.android.com still documents `TEE_SINK` 
 | Believing the media app “Playing” badge | Flinger state is the truth |
 | Assuming software volume is applied on AAOS | Fixed volume may leave Flinger at 1.0 |
 
+## Check yourself
+
+Pick an answer before you look. The explanation, with the Android 15 source line, opens after you choose.
+
+```aa-quiz
+# 3 single-choice checks (portal/content/quizzes/checks.yaml), interactive on the site: https://androidaudio.vercel.app/learn/06/#sec-check-yourself
+ids: [q-standby-exit, q-standby-sequence, q-fastmixer-writer]
+```
+
 ## Practice
 
 Dump excerpt (illustrative, not a promise of exact syntax):

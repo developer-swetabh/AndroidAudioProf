@@ -270,6 +270,15 @@ Fade config names referenced but not defined (15+ fatal)
 | Treating 15 fade as a replacement for bus split | Fade is for rude losers, not cabin spatialization |
 | Forgetting pause-on-duck | Sounds like “HAL ate my media” |
 
+## Check yourself
+
+Pick an answer before you look. The explanation, with the Android 15 source line, opens after you choose.
+
+```aa-quiz
+# 1 single-choice check (portal/content/quizzes/checks.yaml), interactive on the site: https://androidaudio.vercel.app/learn/14/#sec-check-yourself
+ids: [q-aaos-duck]
+```
+
 ## Practice
 
 Requirement: “During nav, media continues 12 dB down on woofers; nav is only on the driver tweeter.”

@@ -129,6 +129,18 @@
       "end": 556,
       "excerptSha256": "1a1f90a4f434c6a8979260d5bc97dcab4ca1ca9214f7c55febb98a3596a0319a"
     },
+    "frameworks/av:media/libaudiohal/impl/Hal2AidlMapper.cpp#mModule->setAudioPatch(patch, &patch)));": {
+      "repo": "frameworks/av",
+      "path": "media/libaudiohal/impl/Hal2AidlMapper.cpp",
+      "ref": "tags/android-15.0.0_r36",
+      "fileSha256": "cd002c611ffa2ee4b12d4868034487a6b20e38b20b18b91faf822336fc931655",
+      "symbol": "mModule->setAudioPatch(patch, &patch)));",
+      "occurrence": 1,
+      "line": 206,
+      "start": 202,
+      "end": 208,
+      "excerptSha256": "9592e9c4b26c85c49d8c2d4885fb1681839be72c4456a0cea3109ab79aa5730c"
+    },
     "frameworks/av:media/libaudiohal/impl/StreamHalAidl.cpp#if (!mContext.getCommandMQ()->writeBlocking(&command, 1)) {": {
       "repo": "frameworks/av",
       "path": "media/libaudiohal/impl/StreamHalAidl.cpp",
@@ -140,6 +152,18 @@
       "start": 666,
       "end": 678,
       "excerptSha256": "57d96802dfde6f27d15dc49b1a2add48733216d873c35b05f417f2f513659681"
+    },
+    "frameworks/av:media/libaudiohal/impl/StreamHalAidl.cpp#status_t StreamHalAidl::standby() {": {
+      "repo": "frameworks/av",
+      "path": "media/libaudiohal/impl/StreamHalAidl.cpp",
+      "ref": "tags/android-15.0.0_r36",
+      "fileSha256": "62de15ee4243d75c71cde27396935a293600d37154493f35757d33cb9233c661",
+      "symbol": "status_t StreamHalAidl::standby() {",
+      "occurrence": 1,
+      "line": 222,
+      "start": 222,
+      "end": 251,
+      "excerptSha256": "e4225a4fdcd8d0c497d94f33be877db53ff69f000a51ad96ecf810fb1fbfd716"
     },
     "frameworks/av:media/libaudiohal/impl/StreamHalAidl.cpp#status_t StreamHalAidl::transfer(": {
       "repo": "frameworks/av",
@@ -356,6 +380,18 @@
       "start": 2899,
       "end": 2916,
       "excerptSha256": "6f3b3659040fe843736fa6061b1351921bb95a3fb9ab982939ecfbce9c2e28f4"
+    },
+    "frameworks/av:services/audioflinger/Threads.cpp#status = hwDevice->createAudioPatch(patch->num_sources,": {
+      "repo": "frameworks/av",
+      "path": "services/audioflinger/Threads.cpp",
+      "ref": "tags/android-15.0.0_r36",
+      "fileSha256": "4f3067d1a68c9a0603f9cf5c820787d4fae2f81b77416328f17de26722f2caa3",
+      "symbol": "status = hwDevice->createAudioPatch(patch->num_sources,",
+      "occurrence": 1,
+      "line": 5044,
+      "start": 5042,
+      "end": 5048,
+      "excerptSha256": "d79160fcb36bfdedbcb19a94804a1a078b1350a4ac81f12b5d3e0be6974c96f3"
     },
     "frameworks/av:services/audioflinger/Threads.cpp#void MixerThread::threadLoop_mix()": {
       "repo": "frameworks/av",
@@ -579,6 +615,18 @@
       "ref": "tags/android-15.0.0_r36",
       "fileSha256": "469f6f612253b5694e51144f03aa5db22d7a274a2317be0272fd6c782c167fa3"
     },
+    "hardware/interfaces:audio/aidl/android/hardware/audio/core/StreamDescriptor.aidl#int xrunFrames;": {
+      "repo": "hardware/interfaces",
+      "path": "audio/aidl/android/hardware/audio/core/StreamDescriptor.aidl",
+      "ref": "tags/android-15.0.0_r36",
+      "fileSha256": "436aa959b024ffb02cc9d3554846520d749d741d5ace4bba76bc64d059b22bc9",
+      "symbol": "int xrunFrames;",
+      "occurrence": 1,
+      "line": 419,
+      "start": 411,
+      "end": 419,
+      "excerptSha256": "41f4ed3a6b27fe5f2fd00ce04e4bdc93d2b81a606c4df7af391c865738b9606b"
+    },
     "hardware/interfaces:audio/aidl/android/hardware/audio/core/StreamDescriptor.aidl#parcelable Reply {": {
       "repo": "hardware/interfaces",
       "path": "audio/aidl/android/hardware/audio/core/StreamDescriptor.aidl",
@@ -590,6 +638,18 @@
       "start": 353,
       "end": 377,
       "excerptSha256": "948bbbe939a4614a24b0367b72da08eaa7940cfb60835df314b60e447609c501"
+    },
+    "hardware/interfaces:audio/aidl/android/hardware/audio/core/stream-out-sm.gv#IDLE -> STANDBY [label=\"standby\"];": {
+      "repo": "hardware/interfaces",
+      "path": "audio/aidl/android/hardware/audio/core/stream-out-sm.gv",
+      "ref": "tags/android-15.0.0_r36",
+      "fileSha256": "37db647aa4f7b95c3b7ea8f1f0fe38c4155503a6b0abbf5b15fe4a677442abb3",
+      "symbol": "IDLE -> STANDBY [label=\"standby\"];",
+      "occurrence": 1,
+      "line": 29,
+      "start": 26,
+      "end": 32,
+      "excerptSha256": "fb99161c0581d8f2dec4bb7d1e03e8b50864a6ea2390c332bf263bc5f1c422bf"
     },
     "hardware/interfaces:audio/aidl/default/Stream.cpp#bool StreamOutWorkerLogic::write(size_t clientSize": {
       "repo": "hardware/interfaces",
@@ -651,6 +711,18 @@
       "end": 126,
       "excerptSha256": "43844e4f0a45d10ba5d7d5196f0cfd96c1551f3330414ef166c1f12007c36ab3"
     },
+    "hardware/interfaces:automotive/audiocontrol/aidl/android/hardware/automotive/audiocontrol/IAudioControl.aidl#oneway void onDevicesToDuckChange(in DuckingInfo[] duckingInfos);": {
+      "repo": "hardware/interfaces",
+      "path": "automotive/audiocontrol/aidl/android/hardware/automotive/audiocontrol/IAudioControl.aidl",
+      "ref": "tags/android-15.0.0_r36",
+      "fileSha256": "8e6e64cb671e9b189578a29d9cbc0cc27b2909812d50754e64e38361b1ef7c66",
+      "symbol": "oneway void onDevicesToDuckChange(in DuckingInfo[] duckingInfos);",
+      "occurrence": 1,
+      "line": 96,
+      "start": 86,
+      "end": 96,
+      "excerptSha256": "e8bc0c58f17346431421184ab4b12b9cd8b0c9a7aa103a20eee7132cdfe7f68d"
+    },
     "kernel/common:sound/core/pcm_lib.c": {
       "repo": "kernel/common",
       "path": "sound/core/pcm_lib.c",
@@ -675,6 +747,30 @@
       "repo": "kernel/common",
       "path": "sound/soc/soc-pcm.c",
       "ref": "heads/android15-6.6"
+    },
+    "packages/services/Car:service/res/values/config.xml#<bool name=\"audioUseHalDuckingSignals\">true</bool>": {
+      "repo": "packages/services/Car",
+      "path": "service/res/values/config.xml",
+      "ref": "tags/android-15.0.0_r36",
+      "fileSha256": "3542768e7b5ff78c86b1fc1f4de8d8af2781a5f6c4c9d9d9f44b760da5634bc1",
+      "symbol": "<bool name=\"audioUseHalDuckingSignals\">true</bool>",
+      "occurrence": 1,
+      "line": 49,
+      "start": 43,
+      "end": 49,
+      "excerptSha256": "a0a69c11badf622982eb472fb0d3fffc84438e1e8b2c75c547138d4de46bc796"
+    },
+    "packages/services/Car:service/src/com/android/car/audio/CarDucking.java#mAudioControlWrapper.onDevicesToDuckChange(newDuckingInfos);": {
+      "repo": "packages/services/Car",
+      "path": "service/src/com/android/car/audio/CarDucking.java",
+      "ref": "tags/android-15.0.0_r36",
+      "fileSha256": "7396bbb1e10287a894cb855df09a9ba776737d0f35f636baac533d86ca729577",
+      "symbol": "mAudioControlWrapper.onDevicesToDuckChange(newDuckingInfos);",
+      "occurrence": 1,
+      "line": 83,
+      "start": 75,
+      "end": 85,
+      "excerptSha256": "3a231baeae9c9f604b8073a8713f4dc44d658bfe0d5ccf698bde232994f85686"
     },
     "system/media:alsa_utils/alsa_device_proxy.c#int proxy_write_with_retries(": {
       "repo": "system/media",

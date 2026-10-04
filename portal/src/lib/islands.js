@@ -20,8 +20,9 @@ function hydrate(el) {
     .then((m) => m.hydrate(el))
     .then(() => (el.dataset.islandState = "ready"))
     .catch(() => {
-      // The static markup stays usable; allow a retry on the next scan.
+      // The static markup stays usable (gated answers become plain <details>); allow a retry on the next scan.
       delete el.dataset.islandState;
+      el.classList.add("island-failed");
     });
 }
 
