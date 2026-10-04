@@ -35,7 +35,18 @@ const SITE = "https://androidaudio.vercel.app";
 const SITE_NAME = "Android Audio Engineering";
 const REPO = "https://github.com/developer-swetabh/AndroidAudioProf";
 const updated = JSON.parse(fs.readFileSync(path.join(portal, "src/content/updated.json"), "utf8"));
-const shell = fs.readFileSync(path.join(dist, "index.html"), "utf8");
+// Analytics is opt-in at build time (see src/lib/analytics.js):
+//   ANALYTICS=vercel         Vercel Web Analytics page views (free on Hobby)
+//   ANALYTICS=vercel+events  also custom events (Vercel custom events need a paid plan)
+// Unset (default): nothing is injected, so no request to /_vercel/insights at all.
+const ANALYTICS = String(process.env.ANALYTICS || "").trim().toLowerCase();
+const analyticsSnippet = /^vercel(\+events)?$/.test(ANALYTICS)
+  ? `<script>(function(){var n=navigator;if(n.doNotTrack==="1"||window.doNotTrack==="1"||n.globalPrivacyControl)return;window.__aaepAnalytics={provider:"vercel",events:${ANALYTICS.endsWith("+events")}};window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments)};var s=document.createElement("script");s.defer=true;s.src="/_vercel/insights/script.js";document.head.appendChild(s)})();</script>`
+  : "";
+if (ANALYTICS && !analyticsSnippet) throw new Error(`prerender: unknown ANALYTICS value "${ANALYTICS}" (use vercel or vercel+events)`);
+const shell = fs
+  .readFileSync(path.join(dist, "index.html"), "utf8")
+  .replace(/<\/head>/, analyticsSnippet ? `    ${analyticsSnippet}\n  </head>` : "</head>");
 
 const escAttr = (s) =>
   String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -322,4 +333,5 @@ for (const rel of htmlFiles) {
   fs.writeFileSync(file, await beasties.process(fs.readFileSync(file, "utf8")));
 }
 
+if (analyticsSnippet) console.log(`analytics: Vercel Web Analytics injected (${ANALYTICS})`);
 console.log(`prerendered home + ${MODULES.length} module pages + /learn/, critical CSS inlined in ${htmlFiles.length} pages, sitemap with ${urls.length} URLs, 404.html`);

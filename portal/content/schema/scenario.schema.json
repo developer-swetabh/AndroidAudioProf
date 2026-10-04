@@ -1,0 +1,42 @@
+{
+  "$id": "scenario.schema.json",
+  "title": "Debugging scenario (UI ships in Phase 2; schema is validated now)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "product", "modules", "symptom", "evidence", "question", "choices", "reveal"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "title": { "type": "string" },
+    "product": { "enum": ["phone", "aaos", "both"] },
+    "modules": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "symptom": { "type": "string" },
+    "evidence": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["tab", "cmd", "body"],
+        "properties": {
+          "tab": { "type": "string" }, "cmd": { "type": "string" }, "body": { "type": "string" },
+          "annotate": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["match", "note"], "properties": { "match": { "type": "string" }, "note": { "type": "string" } } } }
+        }
+      }
+    },
+    "question": { "type": "string" },
+    "choices": {
+      "type": "array", "minItems": 3,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "text", "feedback"],
+        "properties": { "id": { "type": "string" }, "text": { "type": "string" }, "layer": { "type": "string" }, "correct": { "const": true }, "feedback": { "type": "string" } }
+      }
+    },
+    "reveal": {
+      "type": "object", "additionalProperties": false, "required": ["path", "root_cause", "fix"],
+      "properties": {
+        "lkg": { "type": "string" },
+        "path": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["cmd", "expect", "verdict"], "properties": { "cmd": { "type": "string" }, "expect": { "type": "string" }, "verdict": { "enum": ["good", "lkg", "fail"] }, "component": { "type": "string" } } } },
+        "root_cause": { "type": "string" },
+        "fix": { "type": "string" }
+      }
+    },
+    "sources": { "type": "array", "items": { "$ref": "source.schema.json" } }
+  }
+}

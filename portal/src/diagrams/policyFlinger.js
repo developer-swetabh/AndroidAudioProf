@@ -30,7 +30,7 @@ const SHEET = {
     fail: "play() returned is not acoustic energy.",
   },
   svc: {
-    body: "system_server. Focus, volume UI, device callbacks. On AAOS, CarAudioService registers mixes — still not in the PCM path.",
+    body: "system_server. Focus, volume UI, device callbacks. On AAOS, CarAudioService (in CarService, com.android.car, not system_server) registers mixes through AudioService — still not in the PCM path.",
     fail: "Requesting focus does not call getOutputForAttr.",
   },
   policy: {

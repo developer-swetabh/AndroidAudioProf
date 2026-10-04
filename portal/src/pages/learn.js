@@ -1,5 +1,6 @@
 import { $, modHref, onCleanPath } from "../lib/dom.js";
 import { load, save } from "../lib/storage.js";
+import { track } from "../lib/analytics.js";
 import { setMain, consumePrerendered } from "../shell.js";
 import { TRACKS, MODULES, getNeighbors } from "../content/catalog.js";
 import { getLesson } from "../content/lessons.js";
@@ -64,6 +65,7 @@ export async function pageLearn(arg) {
     const d = new Set(load().done || []);
     d.has(id) ? d.delete(id) : d.add(id);
     save({ done: [...d] });
+    track("mark_complete", { module: id, done: d.has(id) });
     $("#markDone").textContent = d.has(id) ? "Completed ✓" : "Mark complete";
     renderTree(id);
   };

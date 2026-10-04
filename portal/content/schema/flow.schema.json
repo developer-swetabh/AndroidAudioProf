@@ -1,0 +1,89 @@
+{
+  "$id": "flow.schema.json",
+  "title": "Step-by-step flow (Trace the Audio Path)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "question", "applies_to", "product", "modules", "lanes", "assumptions", "steps"],
+  "$defs": {
+    "process": { "enum": ["app", "system_server", "com.android.car", "audioserver", "vendor_hal", "kernel", "hardware"] },
+    "lane": { "enum": ["app", "system_server", "com.android.car", "audioserver", "vendor_hal", "kernel", "hardware"] },
+    "inline": { "type": "string", "minLength": 1 },
+    "moduleLink": { "type": "string", "pattern": "^[0-9]{2}[a-z]?(#[a-z0-9-]+)?$" }
+  },
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "title": { "type": "string" },
+    "question": { "type": "string" },
+    "summary": { "type": "string" },
+    "applies_to": {
+      "type": "object", "additionalProperties": false, "required": ["android", "hal"],
+      "properties": { "android": { "const": "15" }, "hal": { "enum": ["aidl", "hidl"] } }
+    },
+    "product": { "enum": ["phone", "aaos", "both"] },
+    "modules": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "lanes": { "type": "array", "items": { "$ref": "#/$defs/lane" }, "minItems": 2, "uniqueItems": true },
+    "assumptions": { "type": "array", "items": { "$ref": "#/$defs/inline" } },
+    "phases": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["from", "label"],
+        "properties": { "from": { "type": "integer", "minimum": 1 }, "label": { "type": "string" } }
+      }
+    },
+    "predict": {
+      "type": "object", "additionalProperties": false, "required": ["before_step", "prompt", "choices", "reveal"],
+      "properties": {
+        "before_step": { "type": "integer", "minimum": 1 },
+        "prompt": { "type": "string" },
+        "choices": {
+          "type": "array", "minItems": 2,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["id", "text"],
+            "properties": { "id": { "type": "string" }, "text": { "type": "string" }, "correct": { "const": true } }
+          }
+        },
+        "reveal": { "$ref": "#/$defs/inline" }
+      }
+    },
+    "steps": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["n", "id", "title", "short", "process", "thread", "path", "lane", "text", "see", "fails", "deeper"],
+        "properties": {
+          "n": { "type": "integer", "minimum": 1 },
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "title": { "type": "string" },
+          "short": { "type": "string", "maxLength": 22, "description": "Node label in the lane diagram" },
+          "process": { "type": "array", "items": { "$ref": "#/$defs/process" }, "minItems": 1 },
+          "thread": { "$ref": "#/$defs/inline" },
+          "path": { "enum": ["data", "control", "both", "config"] },
+          "lane": { "$ref": "#/$defs/lane" },
+          "text": {
+            "type": "object", "additionalProperties": false, "required": ["intermediate", "internals"],
+            "properties": {
+              "beginner": { "$ref": "#/$defs/inline" },
+              "intermediate": { "$ref": "#/$defs/inline" },
+              "internals": { "$ref": "#/$defs/inline" },
+              "deep": { "$ref": "#/$defs/inline" }
+            }
+          },
+          "see": { "type": "array", "items": { "$ref": "#/$defs/inline" }, "minItems": 1 },
+          "fails": { "type": "array", "items": { "$ref": "#/$defs/inline" }, "minItems": 1 },
+          "deeper": {
+            "type": "object", "additionalProperties": false, "required": ["classes", "sources"],
+            "properties": {
+              "classes": { "type": "array", "items": { "type": "string" } },
+              "sources": { "type": "array", "items": { "$ref": "source.schema.json" }, "minItems": 1 },
+              "note": { "$ref": "#/$defs/inline" }
+            }
+          },
+          "links": {
+            "type": "object", "additionalProperties": false,
+            "properties": { "module": { "$ref": "#/$defs/moduleLink" } }
+          }
+        }
+      }
+    }
+  }
+}

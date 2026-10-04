@@ -1,10 +1,10 @@
 /** AAOS / AOSP audio config files. Markdown (07/12/13/14) stays the essay. */
 
 export const XML_FAMILIES = [
-  { id: "aaos", name: "AAOS map", process: "car_service" },
+  { id: "aaos", name: "AAOS map", process: "CarService (com.android.car)" },
   { id: "policy", name: "Policy topology", process: "audioserver / vendor HAL" },
   { id: "engine", name: "CAP engine (optional)", process: "audioserver" },
-  { id: "flags", name: "Feature flags", process: "car_service / system_server" },
+  { id: "flags", name: "Feature flags", process: "CarService (com.android.car) / system_server" },
   { id: "vendor", name: "Vendor HAL graphs", process: "vendor", vendor: true },
   { id: "history", name: "Replaced — do not use", process: "—" },
 ];
@@ -14,7 +14,7 @@ export const BUS_STEPS = [
   {
     id: "xml",
     title: "Boot: parse the map",
-    who: "CarAudioService in car_service",
+    who: "CarAudioService in CarService (com.android.car)",
     line: "Read vendor/etc/car_audio_configuration.xml (then system/etc). Version 4. Validate every address against Policy ports.",
   },
   {
@@ -58,7 +58,7 @@ export const XML_FILES = [
     version: "4 (this course). v2/v3 still boot until you use new tags. v2 root tag may be audioZoneConfiguration in a file still named car_audio_configuration.xml.",
     path: "vendor/etc/ first, then system/etc/",
     example: "device/generic/car/emulator/audio/car_audio_configuration.xml",
-    process: "car_service",
+    process: "CarService (com.android.car)",
     parser: "CarAudioService (CarAudioZonesHelper* / CarAudioContext — names vary by branch)",
     uses: [
       "Zones (audioZoneId) and occupantZoneId (one-to-one)",
@@ -130,7 +130,7 @@ export const XML_FILES = [
     version: "1 (Android 15). Names must match applyFadeConfigs in car XML v4.",
     path: "vendor/etc/ (with the car audio config)",
     example: "device/generic/car/emulator/audio/car_audio_fade_configuration.xml",
-    process: "car_service",
+    process: "CarService (com.android.car)",
     parser: "CarAudioService → FadeManagerConfiguration when dispatching focus loss",
     uses: [
       "Named fade configs: defaultFadeOutDurationInMillis / defaultFadeInDurationInMillis",
@@ -276,7 +276,7 @@ useFixedVolume must be false when using CAP volume
     version: "Since Android 13: RRO on com.android.car.updatable. Before 13: PRODUCT_PACKAGE_OVERLAYS.",
     path: "packages/services/Car/service/res/values/config.xml (overlaid). Cuttlefish: device/google/cuttlefish/shared/auto/rro_overlay/CarServiceOverlay/",
     example: "device/google/cuttlefish/shared/auto/rro_overlay/CarServiceOverlay/res/values/config.xml",
-    process: "car_service (most bools) · system_server (config_useFixedVolume, volume keys)",
+    process: "CarService, com.android.car (most bools) · system_server (config_useFixedVolume, volume keys)",
     parser: "Resources / RRO. Not the car audio XML parser.",
     uses: [
       "audioUseDynamicRouting — master switch for AAOS mixes (must be true on this course)",

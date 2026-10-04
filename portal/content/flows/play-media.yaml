@@ -1,0 +1,410 @@
+# Trace the Audio Path: AudioTrack.play() to speaker on an Android 15 phone.
+# Every source reference is resolved to a line at android-15.0.0_r36 by
+# `npm run sources` (content/sources.lock.json). Edit text here; never edit the lock.
+id: play-media
+title: "What happens when I press Play?"
+question: "AudioTrack.play() to the speaker, Android 15 phone, AIDL audio HAL"
+summary: >-
+  Follow one music track from AudioTrack.Builder to the speaker cone in 14 steps: which
+  process and thread runs each step, which steps carry PCM (data path) and which only
+  set things up (control path), and where in AOSP each step lives.
+applies_to: { android: "15", hal: aidl }
+product: phone
+modules: ["02a", "02", "06", "08"]
+lanes: [app, system_server, audioserver, vendor_hal, kernel, hardware]
+assumptions:
+  - "`AudioTrack.Builder` with `USAGE_MEDIA` / `CONTENT_TYPE_MUSIC`, 48 kHz stereo `ENCODING_PCM_16BIT`, `MODE_STREAM`, then `play()` and `write()` in a loop."
+  - "The track lands on the primary or deep-buffer output (a MixerThread). Offload, direct and AAudio MMAP paths differ and are noted where they branch."
+  - "The vendor HAL is the AOSP default AIDL HAL with its ALSA backend. Real vendor HALs differ below step 11."
+  - "Dump and trace output is illustrative and abridged: field names follow Android 15, exact formatting varies by build."
+phases:
+  - { from: 1, label: "Construction" }
+  - { from: 6, label: "play() and write()" }
+predict:
+  before_step: 6
+  prompt: "The MixerThread is idle. When the app calls `play()`, does AudioFlinger open a new HAL stream?"
+  choices:
+    - { id: y, text: "Yes, play() opens the HAL stream" }
+    - { id: n, text: "No, the stream is already open", correct: true }
+  reveal: "**No.** The output's HAL stream was opened once, when AudioPolicy opened the output (step 4). `play()` only activates the track. If the thread was in standby, its next write sends `Command.start` on the **existing** stream (step 10)."
+steps:
+  - n: 1
+    id: build
+    title: "Build the AudioTrack"
+    short: "AudioTrack.build()"
+    process: [app]
+    thread: "the caller's thread"
+    path: control
+    lane: app
+    text:
+      beginner: "The app describes the sound it will play: what it is for, and its format."
+      intermediate: "`AudioTrack.Builder.build()` runs the `AudioTrack` constructor, which calls `native_setup()`. Attributes, format, buffer size and transfer mode are fixed here."
+      internals: "**Construction is already a routing event.** By the end of step 4, before `play()` is ever called, the track is bound to an output. `play()` later only activates it."
+    see:
+      - "`logcat -s AudioTrack`: no error."
+      - "Java `getState() == STATE_INITIALIZED` once step 5 has returned."
+    fails:
+      - "Invalid format, channel mask or buffer size: the constructor throws or the state stays `STATE_UNINITIALIZED`."
+      - "Wrong usage (for example `USAGE_MEDIA` for a ringtone) is the most common routing bug, and it is decided here."
+    deeper:
+      classes: ["android.media.AudioTrack", "android.media.AudioTrack.Builder"]
+      sources:
+        - { repo: frameworks/base, path: media/java/android/media/AudioTrack.java, symbol: "public @NonNull AudioTrack build()", after: 8, label: "AudioTrack.Builder.build()" }
+        - { repo: frameworks/base, path: media/java/android/media/AudioTrack.java, symbol: "int initResult = native_setup(", label: "native_setup() call in the constructor" }
+    links: { module: "02a#sec-step-1-java-audiotrack-construction-and-play" }
+
+  - n: 2
+    id: jni
+    title: "JNI → native AudioTrack"
+    short: "JNI → native set()"
+    process: [app]
+    thread: "same thread (now in native code)"
+    path: control
+    lane: app
+    text:
+      beginner: "The Java object hands off to the C++ audio client inside the same app."
+      intermediate: "`android_media_AudioTrack_setup()` creates a native `android::AudioTrack` and calls `AudioTrack::set()`, which calls `createTrack_l()`. Still the app process: no Binder call has happened yet."
+      internals: "`set()` validates the configuration, then calls `createTrack_l()`, which builds the `CreateTrackRequest` (attributes, config, session, requested flags and frame count) for the next step."
+    see:
+      - "`logcat -s AudioTrack`: `set()` logs its parameters at verbose level."
+    fails:
+      - "Unsupported config rejected in `set()` (for example a bad channel mask): `BAD_VALUE`, Java state stays uninitialized."
+    deeper:
+      classes: ["android_media_AudioTrack (JNI)", "android::AudioTrack"]
+      sources:
+        - { repo: frameworks/base, path: core/jni/android_media_AudioTrack.cpp, symbol: "static jint android_media_AudioTrack_setup(", label: "android_media_AudioTrack_setup()" }
+        - { repo: frameworks/base, path: core/jni/android_media_AudioTrack.cpp, symbol: "status = lpTrack->set(AUDIO_STREAM_DEFAULT", before: 1, label: "lpTrack->set() (MODE_STREAM)" }
+        - { repo: frameworks/av, path: media/libaudioclient/AudioTrack.cpp, symbol: "status_t AudioTrack::set(", after: 6, label: "AudioTrack::set()" }
+        - { repo: frameworks/av, path: media/libaudioclient/AudioTrack.cpp, symbol: "status = createTrack_l();", before: 6, after: 6, label: "set() calls createTrack_l()" }
+    links: { module: "02a#sec-step-2-native-client-audiotrack-start" }
+
+  - n: 3
+    id: create-track
+    title: "Binder: IAudioFlinger.createTrack"
+    short: "createTrack (Binder)"
+    process: [app, audioserver]
+    thread: "app thread → an audioserver Binder thread"
+    path: control
+    lane: audioserver
+    text:
+      beginner: "The app asks the audio server, a separate system process, for a place to put its sound."
+      intermediate: "`createTrack_l()` calls `audioFlinger->createTrack(CreateTrackRequest)`: one Binder transaction from the app to **audioserver**. It arrives in `AudioFlinger::createTrack` on an audioserver Binder thread."
+      internals: "The app does **not** call AudioPolicyService for this. The only Binder target is `IAudioFlingerService`; AudioFlinger asks AudioPolicy itself, inside audioserver (step 4)."
+    see:
+      - "`dumpsys media.audio_flinger`: once step 5 returns, a new Track line under the chosen output thread, with your session, uid, format and frameCount, state stopped/idle."
+    fails:
+      - "audioserver restarting (crash): the Binder call fails and the client retries or reports an error."
+      - "Permission or attribution problems are rejected here (for example an untrusted uid claiming another package)."
+    deeper:
+      classes: ["android::media::IAudioFlingerService", "android::AudioFlinger"]
+      sources:
+        - { repo: frameworks/av, path: media/libaudioclient/aidl/android/media/IAudioFlingerService.aidl, symbol: "CreateTrackResponse createTrack(", label: "IAudioFlingerService.createTrack" }
+        - { repo: frameworks/av, path: media/libaudioclient/AudioTrack.cpp, symbol: "status = audioFlinger->createTrack(aidlInput.value(), response);", label: "client: audioFlinger->createTrack()" }
+        - { repo: frameworks/av, path: services/audioflinger/AudioFlinger.cpp, symbol: "status_t AudioFlinger::createTrack(const media::CreateTrackRequest&", label: "server: AudioFlinger::createTrack()" }
+    links: { module: "02a#sec-boundary-types-memorize-these" }
+
+  - n: 4
+    id: routing
+    title: "Routing decision inside createTrack"
+    short: "getOutputForAttr"
+    process: [audioserver]
+    thread: "same Binder thread (an in-process call into AudioPolicyService)"
+    path: control
+    lane: audioserver
+    text:
+      beginner: "Before you ever press play, the system has already decided which speaker this sound goes to."
+      intermediate: "`AudioFlinger::createTrack` calls `AudioSystem::getOutputForAttr` → `AudioPolicyService::getOutputForAttr` → `AudioPolicyManager::getOutputForAttr`. Attributes → product strategy → device (SPEAKER, or A2DP if connected) → an **already open** output whose profile matches. It returns the output handle, device and portId."
+      internals: "**When was that output opened?** At boot or when the device attached: APM `openOutputWithProfileAndDevice` → `AudioFlinger::openOutput` → `openOutput_l` → `AudioHwDevice::openOutputStream` → `DeviceHalAidl::openOutputStream` → **`IModule.openOutputStream`**, once. `openOutput_l` then created the playback thread around that stream: MMAP, BitPerfect, Spatializer, Offload, Direct or Mixer, chosen from the output flags."
+      deep: "Direct and offload outputs can be opened on demand during this call. On AAOS, a dynamic policy mix (bus address) matches before the strategy/device logic."
+    see:
+      - "`dumpsys media.audio_policy`: a client entry with your attributes on the selected output."
+      - "`dumpsys media.audio_flinger`: the output thread (for example `AudioOut_D`, type MIXER) and its device."
+    fails:
+      - "No output profile matches the requested format: `createTrack` fails and Java stays `STATE_UNINITIALIZED`."
+      - "Wrong usage or a wrong AAOS bus address routes to an unexpected output; nothing errors."
+    deeper:
+      classes: ["android::AudioFlinger", "android::AudioPolicyService", "android::AudioPolicyManager", "android::DeviceHalAidl"]
+      sources:
+        - { repo: frameworks/av, path: services/audioflinger/AudioFlinger.cpp, symbol: "lStatus = AudioSystem::getOutputForAttr(&localAttr, &output.outputId", label: "createTrack calls getOutputForAttr" }
+        - { repo: frameworks/av, path: services/audiopolicy/service/AudioPolicyInterfaceImpl.cpp, symbol: "Status AudioPolicyService::getOutputForAttr(", label: "AudioPolicyService::getOutputForAttr()" }
+        - { repo: frameworks/av, path: services/audiopolicy/managerdefault/AudioPolicyManager.cpp, symbol: "status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t", label: "AudioPolicyManager::getOutputForAttr()" }
+        - { repo: frameworks/av, path: services/audiopolicy/managerdefault/AudioPolicyManager.cpp, symbol: "status_t AudioPolicyManager::getOutputForAttrInt(", label: "getOutputForAttrInt()" }
+        - { repo: frameworks/av, path: services/audiopolicy/managerdefault/AudioPolicyManager.cpp, symbol: "sp<SwAudioOutputDescriptor> AudioPolicyManager::openOutputWithProfileAndDevice(", label: "earlier: openOutputWithProfileAndDevice()" }
+        - { repo: frameworks/av, path: services/audioflinger/AudioFlinger.cpp, symbol: "sp<IAfThreadBase> AudioFlinger::openOutput_l(", label: "earlier: AudioFlinger::openOutput_l()" }
+        - { repo: frameworks/av, path: services/audioflinger/AudioFlinger.cpp, symbol: "status_t status = outHwDev->openOutputStream(", before: 0, after: 20, label: "openOutputStream, then pick the thread type" }
+        - { repo: frameworks/av, path: media/libaudiohal/impl/DeviceHalAidl.cpp, symbol: "statusTFromBinderStatus(mModule->openOutputStream(args, &ret))", label: "libaudiohal → IModule.openOutputStream" }
+    links: { module: "02a#sec-step-4-audiopolicy-the-routing-decision" }
+
+  - n: 5
+    id: track-shm
+    title: "Track and shared memory"
+    short: "Track + shared mem"
+    process: [audioserver]
+    thread: "Binder thread"
+    path: control
+    lane: audioserver
+    text:
+      beginner: "The server sets up a shared buffer that the app and the mixer can both see."
+      intermediate: "`PlaybackThread::createTrack_l` validates rate, format and channels, decides whether `AUDIO_OUTPUT_FLAG_FAST` is granted, and creates a `Track` with shared memory: an `audio_track_cblk_t` control block plus the data ring. It returns an `IAudioTrack` (`TrackHandle`) to the app, which wraps the memory in `AudioTrackClientProxy`."
+      internals: "FAST is granted only on a thread that has a FastMixer, for linear PCM at the HAL sample rate, with a compatible channel mask and a free fast-track slot; effects on the session or output can also strip it. Otherwise logcat shows `AUDIO_OUTPUT_FLAG_FAST denied` and the track becomes a normal mixer track."
+    see:
+      - "`dumpsys media.audio_flinger`: your Track under the output thread; a fast track shows a fast index (`F` column)."
+      - "`logcat`: `AUDIO_OUTPUT_FLAG_FAST denied: …` lists exactly which condition failed."
+    fails:
+      - "Shared memory allocation fails (rare; usually too many tracks for one uid)."
+      - "FAST requested but denied: higher latency than the app expected, no error."
+    deeper:
+      classes: ["android::PlaybackThread", "android::Track", "android::TrackHandle", "audio_track_cblk_t", "android::AudioTrackClientProxy"]
+      sources:
+        - { repo: frameworks/av, path: services/audioflinger/Threads.cpp, symbol: "sp<IAfTrack> PlaybackThread::createTrack_l(", label: "PlaybackThread::createTrack_l()" }
+        - { repo: frameworks/av, path: services/audioflinger/Threads.cpp, symbol: "AUDIO_OUTPUT_FLAG_FAST denied: sharedBuffer", before: 2, after: 8, label: "FAST denied log" }
+        - { repo: frameworks/av, path: services/audioflinger/Tracks.cpp, symbol: "class TrackHandle : public android::media::BnAudioTrack", label: "TrackHandle (IAudioTrack)" }
+        - { repo: frameworks/av, path: media/libaudioclient/AudioTrackShared.cpp }
+    links: { module: "06#sec-5-shared-memory-buffer-architecture" }
+
+  - n: 6
+    id: start
+    title: "play(): IAudioTrack.start()"
+    short: "play() → start()"
+    process: [app, audioserver]
+    thread: "app thread → audioserver Binder thread"
+    path: control
+    lane: audioserver
+    text:
+      beginner: "Pressing play tells the server to start mixing this track. Nothing new is opened."
+      intermediate: "`AudioTrack.play()` → `native_start` → `AudioTrack::start()` → Binder `IAudioTrack.start()` → `TrackHandle::start` → `Track::start` → `PlaybackThread::addTrack_l`, which calls `AudioSystem::startOutput(portId)`. The track joins the active tracks and the thread is woken. **No HAL stream is opened.**"
+      internals: "`startOutput` lets AudioPolicy mark the client active and update volume (and the output's device if needed); it does not pick a different output. *Side lane:* audio focus (`AudioManager.requestAudioFocus` → AudioService / `MediaFocusControl` in `system_server`) is a separate Binder conversation. Focus never calls `getOutputForAttr` and PCM never goes to `system_server`."
+    see:
+      - "`dumpsys media.audio_flinger`: track state `ACTIVE`; the thread shows `Standby: no` shortly after."
+      - "`dumpsys audio`: the focus stack, if the app requested focus. It is a different machine from the Flinger track."
+    fails:
+      - "`play()` returned, but the track never becomes ACTIVE: check `startOutput` errors in logcat."
+      - "An app that skips focus can still play. Focus is a policy convention, not a gate on PCM."
+    deeper:
+      classes: ["android::TrackHandle", "android::Track", "android::PlaybackThread", "com.android.server.audio.MediaFocusControl"]
+      sources:
+        - { repo: frameworks/base, path: core/jni/android_media_AudioTrack.cpp, symbol: "android_media_AudioTrack_start(JNIEnv *env, jobject thiz)", label: "JNI native_start" }
+        - { repo: frameworks/av, path: media/libaudioclient/AudioTrack.cpp, symbol: "status_t AudioTrack::start()", label: "AudioTrack::start()" }
+        - { repo: frameworks/av, path: services/audioflinger/Tracks.cpp, symbol: "Status TrackHandle::start(int32_t* _aidl_return)", label: "TrackHandle::start()" }
+        - { repo: frameworks/av, path: services/audioflinger/Tracks.cpp, symbol: "status_t Track::start(AudioSystem::sync_event_t event __unused", label: "Track::start()" }
+        - { repo: frameworks/av, path: services/audioflinger/Threads.cpp, symbol: "status = AudioSystem::startOutput(track->portId());", before: 13, after: 4, label: "addTrack_l() → startOutput()" }
+        - { repo: frameworks/base, path: services/core/java/com/android/server/audio/MediaFocusControl.java, symbol: "protected int requestAudioFocus(@NonNull AudioAttributes aa", label: "focus: MediaFocusControl (system_server)" }
+    links: { module: "02a#sec-step-3-audioflinger-track-activation" }
+
+  - n: 7
+    id: write
+    title: "App writes PCM into shared memory"
+    short: "write() → ring"
+    process: [app]
+    thread: "the app's writer thread"
+    path: data
+    lane: app
+    text:
+      beginner: "The app pours samples into the shared buffer. No message is sent per write."
+      intermediate: "`AudioTrack.write()` → `AudioTrack::write()` → `obtainBuffer()` → copy → `releaseBuffer()`. The client proxy advances the write index in the control block. **There is no Binder call per write**: the mixer reads the new index on its next cycle."
+      internals: "When the ring is full, `obtainBuffer` blocks the app on a futex in the control block until the server consumes frames and wakes it. If the app is late, the mixer finds the ring empty and the track **underruns** (counted in the Flinger dump). If AudioFlinger disabled the track after a long underrun, the next `releaseBuffer` restarts it with one `IAudioTrack.start()` Binder call."
+    see:
+      - "Dump `media.audio_flinger` twice, one second apart: the track's server frame counter advances and `underruns` stays 0."
+    fails:
+      - "App writer thread too slow or blocked (GC, disk, decoder): track underruns, audible gaps."
+      - "Writing before `play()` only fills the ring; nothing is heard until the track is active."
+    deeper:
+      classes: ["android::AudioTrack", "android::ClientProxy", "audio_track_cblk_t"]
+      sources:
+        - { repo: frameworks/base, path: media/java/android/media/AudioTrack.java, symbol: "public int write(@NonNull byte[] audioData, int offsetInBytes, int sizeInBytes)", label: "AudioTrack.write(byte[])" }
+        - { repo: frameworks/av, path: media/libaudioclient/AudioTrack.cpp, symbol: "ssize_t AudioTrack::write(const void* buffer, size_t userSize, bool blocking)", after: 4, label: "AudioTrack::write()" }
+        - { repo: frameworks/av, path: media/libaudioclient/AudioTrack.cpp, symbol: "status_t err = obtainBuffer(&audioBuffer,", before: 6, after: 21, label: "write(): obtainBuffer → memcpy → releaseBuffer" }
+        - { repo: frameworks/av, path: media/libaudioclient/AudioTrackShared.cpp, symbol: "void ClientProxy::releaseBuffer(Buffer* buffer)", before: 0, after: 25, label: "ClientProxy::releaseBuffer(): publish the write index" }
+    links: { module: "02a#sec-buffer-architecture" }
+
+  - n: 8
+    id: mixer
+    title: "MixerThread period loop"
+    short: "MixerThread mix"
+    process: [audioserver]
+    thread: "`AudioOut_<id>` (output id in hex, for example `AudioOut_D`), `ANDROID_PRIORITY_URGENT_AUDIO`"
+    path: data
+    lane: audioserver
+    text:
+      beginner: "Once per period the mixer gathers every playing track, mixes them and hands the result down."
+      intermediate: "`PlaybackThread::threadLoop()` runs on thread **`AudioOut_<id>`**. `MixerThread::prepareTracks_l()` picks tracks with enough data and sets volumes. `threadLoop_mix()` has AudioMixer pull frames through each track's server proxy, resample if rates differ and apply gain. Effect chains run per session and on the output. Then `threadLoop_write()`."
+      internals: "If the thread was in **standby**, this first write takes the existing HAL stream out of standby (step 10). After about 3 s without active tracks (default; `ro.audio.flinger_standbytime_ms`), the thread goes back to standby."
+    see:
+      - "Perfetto (atrace category `audio`, plus `sched`): `AudioOut_<id>` shows periodic `write` slices from `threadLoop_write`."
+      - "`dumpsys media.audio_flinger`: thread `Standby: no`, frames written increasing, and per-track underruns."
+    fails:
+      - "A track that is not ready when the mixer runs underruns (app late, step 7)."
+      - "A slow effect in the chain makes the whole thread late for every track."
+    deeper:
+      classes: ["android::PlaybackThread", "android::MixerThread", "android::AudioMixer"]
+      sources:
+        - { repo: frameworks/av, path: services/audioflinger/Threads.cpp, symbol: "bool PlaybackThread::threadLoop()", label: "PlaybackThread::threadLoop()" }
+        - { repo: frameworks/av, path: services/audioflinger/Threads.cpp, symbol: "PlaybackThread::mixer_state MixerThread::prepareTracks_l(", label: "MixerThread::prepareTracks_l()" }
+        - { repo: frameworks/av, path: services/audioflinger/Threads.cpp, symbol: "void MixerThread::threadLoop_mix()", label: "MixerThread::threadLoop_mix()" }
+        - { repo: frameworks/av, path: services/audioflinger/Threads.cpp, symbol: "ssize_t PlaybackThread::threadLoop_write()", after: 14, label: "PlaybackThread::threadLoop_write()" }
+        - { repo: frameworks/av, path: services/audioflinger/Threads.cpp, symbol: "snprintf(mThreadName, kThreadNameLength, \"AudioOut_%X\", id);", label: "thread name AudioOut_%X" }
+        - { repo: frameworks/av, path: services/audioflinger/Threads.cpp, symbol: "run(mThreadName, ANDROID_PRIORITY_URGENT_AUDIO);", label: "thread priority" }
+        - { repo: frameworks/av, path: services/audioflinger/Threads.cpp, symbol: "static const nsecs_t kDefaultStandbyTimeInNsecs = seconds(3);", after: 8, label: "standby delay (3 s default)" }
+    links: { module: "06#sec-mixer-loop-the-heartbeat" }
+
+  - n: 9
+    id: fastmixer
+    title: "FastMixer (when present)"
+    short: "FastMixer → HAL sink"
+    process: [audioserver]
+    thread: "`FastMixer` (SCHED_FIFO), or `AudioOut_<id>` when there is no FastMixer"
+    path: data
+    lane: audioserver
+    text:
+      beginner: "On the low-latency output, a second, faster thread does the final hand-off every few milliseconds."
+      intermediate: "Only outputs with a FastMixer, typically the primary low-latency output (deep-buffer outputs do not get one). MixerThread writes its normal mix into a **MonoPipe**. `FastMixer::onWork()` on the **`FastMixer`** thread mixes the fast tracks plus that pipe and writes **every HAL period** to the output sink. Without a FastMixer, MixerThread writes the sink itself."
+      internals: "With the default static FastMixer mode, `mNormalSink` is the pipe when a FastMixer exists and the HAL sink otherwise. FastMixer is a helper `FastThread` owned by the MixerThread, not another PlaybackThread. Direct and Offload threads skip AudioMixer and call `mOutput->write` directly."
+    see:
+      - "`dumpsys media.audio_flinger`: a FastMixer section for the thread and the fast track index."
+      - "Perfetto: a `FastMixer` thread waking once per HAL period."
+    fails:
+      - "FastMixer late (CPU contention, priority not granted): glitches even when every app is on time."
+    deeper:
+      classes: ["android::FastMixer", "android::FastThread", "android::MonoPipe", "android::AudioStreamOutSink"]
+      sources:
+        - { repo: frameworks/av, path: services/audioflinger/fastpath/FastMixer.cpp, symbol: "void FastMixer::onWork()", label: "FastMixer::onWork()" }
+        - { repo: frameworks/av, path: services/audioflinger/fastpath/FastMixer.cpp, symbol: "const ssize_t framesWritten = mOutputSink->write(buffer, frameCount);", before: 6, label: "FastMixer writes the HAL sink" }
+        - { repo: frameworks/av, path: services/audioflinger/Threads.cpp, symbol: "MonoPipe *monoPipe = new MonoPipe(", label: "MixerThread creates the MonoPipe" }
+        - { repo: frameworks/av, path: services/audioflinger/Threads.cpp, symbol: "mNormalSink = initFastMixer ? mPipeSink : mOutputSink;", before: 9, after: 2, label: "mNormalSink: pipe or HAL sink" }
+        - { repo: frameworks/av, path: services/audioflinger/Threads.cpp, symbol: "bytesWritten = mOutput->write((char *)mSinkBuffer + offset, mBytesRemaining);", before: 4, after: 4, label: "direct/offload: mOutput->write" }
+    links: { module: "06#sec-8-fastmixer-and-logging" }
+
+  - n: 10
+    id: fmq-burst
+    title: "libaudiohal → FMQ burst"
+    short: "FMQ + Command.burst"
+    process: [audioserver]
+    thread: "same writer thread (`AudioOut_<id>` or `FastMixer`)"
+    path: both
+    lane: audioserver
+    text:
+      beginner: "AudioFlinger drops one period of mixed sound into a queue shared with the vendor's audio service and rings a bell."
+      intermediate: "`StreamOutHalAidl::write()` → `StreamHalAidl::transfer()`. If the stream is in `STANDBY`, it first sends **`Command.start`** (expects `IDLE`). It writes the PCM bytes into the **data FMQ**, sends **`Command.burst(bytes)`** on the **command FMQ**, then blocks reading the **reply FMQ**."
+      internals: "The `Reply` carries `status`, `fmqByteCount`, `observable` (frames, timeNs), `latencyMs`, `xrunFrames` and `state`. **The blocking reply is what paces the loop.** On AIDL, AudioFlinger's presentation timestamps come from the `observable` position in these replies."
+      deep: "Asynchronous (non-blocking) HALs use the TRANSFERRING state and a callback. AAudio MMAP streams bypass this entirely: the app writes the HAL's mmap buffer."
+    see:
+      - "Perfetto: right after each `write` slice on `AudioOut_<id>` (or `FastMixer`), the HAL process's `writer` thread wakes."
+    fails:
+      - "`Command.start` reply is not `IDLE`: the write fails with `INVALID_OPERATION` and AudioFlinger logs the stream state."
+      - "The HAL replies late: the writer thread blocks, the mixer misses its period, glitches follow."
+    deeper:
+      classes: ["android::StreamOutHalAidl", "android::StreamHalAidl", "aidl::android::hardware::audio::core::StreamDescriptor"]
+      sources:
+        - { repo: frameworks/av, path: media/libaudiohal/impl/StreamHalAidl.cpp, symbol: "status_t StreamOutHalAidl::write(", label: "StreamOutHalAidl::write()" }
+        - { repo: frameworks/av, path: media/libaudiohal/impl/StreamHalAidl.cpp, symbol: "status_t StreamHalAidl::transfer(", before: 0, after: 29, label: "transfer(): start if STANDBY, data FMQ, burst" }
+        - { repo: frameworks/av, path: media/libaudiohal/impl/StreamHalAidl.cpp, symbol: "if (!mContext.getCommandMQ()->writeBlocking(&command, 1)) {", before: 2, after: 10, label: "sendCommand(): command FMQ, then block on reply FMQ" }
+        - { repo: hardware/interfaces, path: audio/aidl/android/hardware/audio/core/StreamDescriptor.aidl, symbol: "parcelable Reply {", before: 0, after: 24, label: "StreamDescriptor.Reply" }
+    links: { module: "08#sec-data-path-this-is-the-android-15-sentence" }
+
+  - n: 11
+    id: hal-worker
+    title: "AIDL HAL worker consumes the burst"
+    short: "HAL writer thread"
+    process: [vendor_hal]
+    thread: "the stream's worker thread (`writer` in the AOSP default HAL; SCHED_FIFO for FAST streams when the process may request it)"
+    path: both
+    lane: vendor_hal
+    text:
+      beginner: "In the vendor's audio service, a worker wakes up, takes the whole period from the queue and passes it to the driver."
+      intermediate: "`StreamOutWorkerLogic::cycle()` `readBlocking`s the command. On `burst` it reads **all** available bytes from the data FMQ (the FMQ is a hand-off, not a store), calls the driver's `transfer()`, fills the `Reply` and moves `IDLE → ACTIVE`."
+      internals: "The stream was created once by `IModule.openOutputStream`, which returned `IStreamOut` (Binder control) plus the `StreamDescriptor` (command, reply and data FMQs). Routing changes use `IModule.setAudioPatch`, a different conversation; they do not reopen the stream."
+    see:
+      - "Perfetto: the HAL process's `writer` thread wakes once per burst."
+      - "HAL position advances in `dumpsys media.audio_flinger` (from the reply's `observable` frames)."
+    fails:
+      - "The worker does not drain the FMQ fully, or its backend blocks: replies arrive late and `xrunFrames` rises while Flinger shows `underruns 0`."
+      - "FIFO priority not granted (the default HAL treats that failure as non-fatal): the worker gets preempted under load."
+    deeper:
+      classes: ["aidl::android::hardware::audio::core::IModule", "IStreamOut", "StreamOutWorkerLogic"]
+      sources:
+        - { repo: hardware/interfaces, path: audio/aidl/android/hardware/audio/core/IModule.aidl, symbol: "OpenOutputStreamReturn openOutputStream(", before: 0, after: 2, label: "IModule.openOutputStream (once, at output open)" }
+        - { repo: hardware/interfaces, path: audio/aidl/android/hardware/audio/core/IStreamOut.aidl }
+        - { repo: hardware/interfaces, path: audio/aidl/default/Stream.cpp, symbol: "const std::string StreamOutWorkerLogic::kThreadName = \"writer\";", before: 0, after: 4, label: "worker thread name + cycle()" }
+        - { repo: hardware/interfaces, path: audio/aidl/default/Stream.cpp, symbol: "bool StreamOutWorkerLogic::write(size_t clientSize", before: 0, after: 27, label: "write(): drain the FMQ, driver transfer()" }
+        - { repo: hardware/interfaces, path: audio/aidl/default/Stream.cpp, symbol: "if (sched_setscheduler(workerTid, SCHED_FIFO", before: 22, after: 2, label: "FAST workers: SCHED_FIFO" }
+    links: { module: "02a#sec-step-5-aidl-hal-the-already-open-stream-and-burs" }
+
+  - n: 12
+    id: tinyalsa
+    title: "Vendor backend → TinyALSA"
+    short: "pcm_write()"
+    process: [vendor_hal]
+    thread: "same worker thread, then a syscall"
+    path: data
+    lane: vendor_hal
+    text:
+      beginner: "The vendor code writes the samples to the Linux sound driver."
+      intermediate: "AOSP default HAL: `StreamAlsa::transfer()` → `proxy_write_with_retries()` → `pcm_write()` → `ioctl(SNDRV_PCM_IOCTL_WRITEI_FRAMES)`."
+      internals: "The PCM was opened in `StreamAlsa::start()` (on `Command.start`), and `StreamAlsa::standby()` closes it. Closing the PCM on standby is a **HAL choice**, not an AudioFlinger rule. Qualcomm-style HALs go through PAL → AGM → DSP instead (vendor code: do not guess module IDs)."
+    see:
+      - "`adb shell cat /proc/asound/card*/pcm*p/sub0/status`: `state: RUNNING` while playing."
+    fails:
+      - "`pcm_open` fails (wrong card/device, unsupported config): the HAL returns an error to `Command.start`."
+      - "The write ioctl fails with `EPIPE` (XRUN); TinyALSA re-prepares and retries unless the PCM was opened with `PCM_NORESTART`."
+    deeper:
+      classes: ["StreamAlsa (AOSP default HAL)", "alsa_device_proxy", "tinyalsa pcm"]
+      note: "Vendor HALs replace this whole step with their own backend."
+      sources:
+        - { repo: hardware/interfaces, path: audio/aidl/default/alsa/StreamAlsa.cpp, symbol: "::android::status_t StreamAlsa::transfer(", before: 0, after: 20, label: "StreamAlsa::transfer()" }
+        - { repo: hardware/interfaces, path: audio/aidl/default/alsa/StreamAlsa.cpp, symbol: "::android::status_t StreamAlsa::standby()", before: 0, after: 12, label: "standby() closes, start() opens" }
+        - { repo: system/media, path: alsa_utils/alsa_device_proxy.c, symbol: "int proxy_write_with_retries(", before: 0, after: 12, label: "proxy_write_with_retries()" }
+        - { repo: external/tinyalsa, path: pcm.c, symbol: "int pcm_write(struct pcm *pcm, const void *data, unsigned int count)", before: 0, after: 24, label: "pcm_write() → WRITEI_FRAMES" }
+    links: { module: "02a#sec-step-6-vendor-implementation-hal-to-alsa" }
+
+  - n: 13
+    id: kernel
+    title: "Kernel ALSA, ASoC and DMA"
+    short: "ALSA ring + DMA"
+    process: [kernel]
+    thread: "syscall context of the writer, then DMA and the period IRQ"
+    path: data
+    lane: kernel
+    text:
+      beginner: "The kernel copies the samples into a ring that the hardware reads on its own clock."
+      intermediate: "The write ioctl copies frames into the **DMA ring** (period size × periods). ASoC (DPCM) connects the front-end PCM to the back-end DAI. The DMA engine streams periods to I2S/TDM, and each period-elapsed interrupt advances `hw_ptr`."
+      internals: "If the ring runs dry before the next write, the PCM goes to **XRUN** and the next write fails with `-EPIPE`. A PCM can be `RUNNING` with `hw_ptr` moving while playing zeros: that is not an XRUN."
+    see:
+      - "`/proc/asound/card*/pcm*p/sub0/status`: `state: RUNNING`, `hw_ptr` advancing between reads."
+      - "`/proc/asound/card*/pcm*p/sub0/hw_params`: period size and buffer size."
+    fails:
+      - "`hw_ptr` frozen while RUNNING: clocks, DAI or DMA, not Policy."
+      - "Repeated XRUN: the writer above is late (step 11) or the period is too small."
+    deeper:
+      classes: ["ALSA PCM core", "ASoC DPCM", "generic dmaengine PCM"]
+      note: "Kernel links point at the `android15-6.6` common kernel branch, which moves. Vendor kernels differ."
+      sources:
+        - { repo: kernel/common, path: sound/core/pcm_native.c, label: "pcm_native.c (ioctls, state machine)" }
+        - { repo: kernel/common, path: sound/core/pcm_lib.c, label: "pcm_lib.c (period elapsed, hw_ptr, XRUN)" }
+        - { repo: kernel/common, path: sound/soc/soc-pcm.c, label: "soc-pcm.c (ASoC / DPCM)" }
+        - { repo: kernel/common, path: sound/soc/soc-generic-dmaengine-pcm.c, label: "soc-generic-dmaengine-pcm.c (DMA)" }
+    links: { module: "02a#sec-step-7-kernel-alsa-pcm-ring-buffer" }
+
+  - n: 14
+    id: hardware
+    title: "DSP, codec, amp and speaker"
+    short: "DAC · amp · speaker"
+    process: [hardware]
+    thread: "hardware (no CPU thread)"
+    path: data
+    lane: hardware
+    text:
+      beginner: "The digital samples become a voltage, get amplified and move the speaker."
+      intermediate: "Optional DSP processing (vendor graph), then the codec DAC. **DAPM** powers the widget path only when it is complete. The smart amp is enabled and the speaker moves air."
+      internals: "\"PCM RUNNING, `hw_ptr` moving, still silent\" means the problem is here: a DAPM path that is not complete, a mixer control, amp enable, or an amp fault."
+    see:
+      - "Measured output (scope or a mic)."
+      - "Mixer controls with `tinymix` on the vendor's card."
+    fails:
+      - "Amp not enabled or in protection: silence with a healthy software stack."
+      - "Mixer control routes the DAI to the wrong DAC path: DAPM never powers the speaker path."
+    deeper:
+      classes: ["ASoC DAPM", "codec and smart-amp drivers (vendor BSP)"]
+      note: "Codec, amp and DSP drivers are vendor BSP code, not AOSP."
+      sources:
+        - { repo: kernel/common, path: sound/soc/soc-dapm.c, label: "soc-dapm.c (power the widget path)" }
+    links: { module: "02a#sec-step-9-hardware-dac-amplifier-speaker" }

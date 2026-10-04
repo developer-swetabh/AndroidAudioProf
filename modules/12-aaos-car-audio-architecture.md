@@ -67,7 +67,7 @@ Audio Usage / AudioAttributes
 graph TD
     App["App AudioAttributes / Usage<br/>(e.g., USAGE_MEDIA, USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)"]
     
-    subgraph AAOS_Layer ["Car Service (car_service process)"]
+    subgraph AAOS_Layer ["CarService (com.android.car)"]
         CAS["CarAudioService"]
         Zones["Car Audio Zones<br/>(Primary, Rear Seat RSE, Passenger)"]
         Occupant["CarOccupantZoneManager<br/>(User ID & Seat Display binding)"]
@@ -101,7 +101,7 @@ graph TD
 ### What happens at boot (concept)
 
 ```text
-car_service starts
+CarService (com.android.car) starts
     ↓
 CarAudioService reads vendor/etc/car_audio_configuration.xml
     (fallback search includes system/etc; vendor wins)
@@ -273,7 +273,7 @@ Config version parsed
 N zones, each with volume groups
 All contexts assigned in the active zone config
 Dynamic mixes registered
-No crash loop of car_service
+No crash loop of CarService (`com.android.car`)
 ```
 
 What indicates a problem:

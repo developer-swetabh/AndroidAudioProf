@@ -1,5 +1,6 @@
 import { $, $$, copy, go, parseHash } from "./lib/dom.js";
 import { load, save } from "./lib/storage.js";
+import { track } from "./lib/analytics.js";
 import { MODULES } from "./content/catalog.js";
 import { NAV, shellHtml } from "./shellMarkup.js";
 
@@ -113,6 +114,7 @@ export function setMain(html, { animate = true } = {}) {
 
 export async function openPalette() {
   closeOverlays();
+  track("palette_open");
   const { TERMS, DUMP_SCENARIOS, RCA_CASES, GATES, XML_FILES, LIFE_SCENES } = await loadPaletteData();
   closeOverlays();
   const items = [
@@ -140,11 +142,13 @@ export async function openPalette() {
     $("#plist").innerHTML = hit
       .map(
         (i, n) =>
-          `<button type="button" class="palette-item ${n === sel ? "active" : ""}" data-h="${i.h}"><span class="palette-k">${i.k}</span>${i.t}</button>`,
+          `<button type="button" class="palette-item ${n === sel ? "active" : ""}" data-h="${i.h}" data-k="${i.k}"><span class="palette-k">${i.k}</span>${i.t}</button>`,
       )
       .join("") || `<p class="palette-empty">No matches.</p>`;
     $$("#plist [data-h]").forEach((n) => {
       n.onclick = () => {
+        // Kind and query length only; the query text is never sent.
+        track("palette_select", { kind: n.dataset.k, q_len: pin.value.trim().length });
         go(n.dataset.h);
         el.remove();
       };

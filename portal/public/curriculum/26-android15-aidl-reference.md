@@ -2,7 +2,7 @@
 
 ## Short Answer
 
-This is the pocket HAL card for the course default. If you need a method name, start here, then open the `.aidl` on `android-15` / `android-latest-release`. Do not invent HIDL twins.
+This is the pocket HAL card for the course default. If you need a method name, start here, then open the `.aidl` at the course tag `android-15.0.0_r36` ([hardware/interfaces at that tag](https://android.googlesource.com/platform/hardware/interfaces/+/refs/tags/android-15.0.0_r36/audio/aidl/android/hardware/audio/core/)). Do not invent HIDL twins.
 
 ## Mental Model
 

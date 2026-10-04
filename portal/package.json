@@ -4,16 +4,20 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build && node scripts/prerender.mjs",
+    "dev": "node scripts/build-content.mjs && vite",
+    "build": "node scripts/build-content.mjs && vite build && node scripts/prerender.mjs",
     "preview": "vite preview",
+    "content": "node scripts/build-content.mjs",
+    "sources": "node scripts/fetch-sources.mjs",
     "sync": "node scripts/sync-curriculum.mjs",
-    "sync:check": "node scripts/sync-curriculum.mjs --check"
+    "sync:check": "node scripts/sync-curriculum.mjs --check && node scripts/build-content.mjs --check"
   },
   "devDependencies": {
+    "ajv": "8.20.0",
     "beasties": "0.5.4",
     "linkedom": "0.18.13",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "yaml": "2.9.1"
   },
   "dependencies": {
     "dompurify": "3.4.16",

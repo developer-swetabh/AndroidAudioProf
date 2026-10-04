@@ -4,7 +4,7 @@
 
 You do not memorize AOSP. You learn **entry points**, **process boundaries**, and **search keys**. The skill is: start at the API the app called, walk Binder, land in the service, and know when you have left AOSP for vendor code.
 
-Use [cs.android.com](https://cs.android.com) on `android-latest-release` or your exact branch. File names shift; **symbols and responsibilities** last longer.
+The course is pinned to the tag `android-15.0.0_r36`. Browse it on [android.googlesource.com](https://android.googlesource.com/platform/frameworks/av/+/refs/tags/android-15.0.0_r36/) (exact lines), or use [cs.android.com](https://cs.android.com) for cross-reference search, switching the branch selector to an Android 15 tag or to your exact device branch. The default cs.android.com branch is newer than Android 15, so line numbers there will not match this course. File names shift; **symbols and responsibilities** last longer.
 
 ## Mental Model
 
@@ -212,7 +212,7 @@ Expected:
 3. TinyALSA/ALSA XRUN handling; Flinger may count underrun / recover
 4. XML parse → mix registration → later user affinity
 
-Then open cs.android.com and verify one of them on `android-latest-release`. Write down the real file path you saw.
+Then verify one of them at the tag `android-15.0.0_r36` (on android.googlesource.com, or on cs.android.com with that tag selected). Write down the real file path you saw.
 
 ## Key Takeaways
 

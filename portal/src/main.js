@@ -2,6 +2,7 @@ import "./styles.css";
 import { parseHash, onCleanPath, cleanTarget } from "./lib/dom.js";
 import { mountShell, syncNav, closeOverlays } from "./shell.js";
 import { pageComing } from "./pages/coming.js";
+import { trackHashPageview, trackScrollDepth } from "./lib/analytics.js";
 
 // Each section's code is a separate chunk, fetched the first time it is opened.
 const LIVE = {
@@ -52,13 +53,17 @@ async function route() {
   syncNav();
   closeOverlays();
   render(arg);
+  trackScrollDepth(arg ? `${page}/${arg.split("/")[0]}` : page);
 }
 
 // Only "#/..." (or an empty hash) is a route. Plain "#id" fragments (skip link,
 // in-page section anchors on clean-path pages) must not re-render the page.
 window.addEventListener("hashchange", () => {
   const h = location.hash;
-  if (h === "" || h === "#" || h.startsWith("#/")) route();
+  if (h === "" || h === "#" || h.startsWith("#/")) {
+    route();
+    trackHashPageview();
+  }
 });
 
 // On prerendered clean-path pages (/learn/06/), turn app hash links into real
