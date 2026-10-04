@@ -37,7 +37,7 @@ export function anchorHeadings(html, secHref) {
   const seen = new Set();
   const toc = [];
   const out = String(html).replace(/<(h[23])([^>]*)>([\s\S]*?)<\/\1>/g, (all, tag, attrs, inner) => {
-    if (/class="anchor"/.test(inner)) return all; // already processed
+    if (/class="anchor"/.test(inner) || /\sdata-noanchor/.test(attrs)) return all; // already processed / widget heading
     const label = textOf(inner).trim();
     let id = (/\sid="([^"]+)"/.exec(attrs) || [])[1];
     if (!id || seen.has(id)) {

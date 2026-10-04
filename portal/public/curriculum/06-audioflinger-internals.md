@@ -61,6 +61,15 @@ AIDL IModule stream
 
 ### Mixer loop (the heartbeat)
 
+Steps 5 to 10 of the playback trace are the AudioFlinger part: the track and its shared memory, `play()`, the app writing into the ring, the MixerThread loop, FastMixer, and the hand-off to the HAL.
+
+```aa-flow
+# Interactive step player on the site: https://androidaudio.vercel.app/trace/play/
+src: play-media
+steps: 5-10
+```
+
+
 ```text
 threadLoop:
     if no active tracks:

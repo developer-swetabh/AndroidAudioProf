@@ -131,6 +131,14 @@ graph TD
 
 ### Control path vs data path (draw both)
 
+The trace below follows one music track through every process on this map. Watch the path label on each step: only steps 7 to 14 carry PCM.
+
+```aa-flow
+# Interactive step player on the site: https://androidaudio.vercel.app/trace/play/
+src: play-media
+```
+
+
 **Control path** for starting playback:
 
 ```text

@@ -34,6 +34,13 @@ A letter lost at customs (HAL) looks the same to the sender (app) as a letter lo
 
 ## The Complete Playback Journey
 
+Step through the whole journey first, one hop at a time. Each step names the process and thread, says whether it carries PCM (data path) or only sets things up (control path), and links the exact Android 15 source. The sections below explain each part in depth.
+
+```aa-flow
+# Interactive step player on the site: https://androidaudio.vercel.app/trace/play/
+src: play-media
+```
+
 ### Overview map
 
 ```text

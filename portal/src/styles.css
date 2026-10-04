@@ -3895,3 +3895,523 @@ a.btn-ghost {
     white-space: pre-wrap;
   }
 }
+
+/* ===== Trace the Audio Path (flow player) ===== */
+.sr-only {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.trace-page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+.trace-head h1 {
+  margin: 10px 0 8px;
+}
+.trace-head .lede {
+  max-width: 76ch;
+  color: var(--text-secondary);
+}
+.trace-assume {
+  margin: 10px 0;
+  max-width: 76ch;
+}
+.trace-keys {
+  font-size: 0.875rem;
+}
+.trace-cards {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+}
+.trace-card h2 {
+  font-size: 1.25rem;
+  margin: 0 0 6px;
+}
+.aa-flow {
+  margin: 24px 0;
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  padding: 16px;
+}
+.aa-flow-ph {
+  min-height: 420px;
+}
+.flow-embed-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin-bottom: 8px;
+}
+.flow-embed-kicker {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+.md-body .flow-embed-title {
+  margin: 0;
+  font-size: 1.2rem;
+  flex: 1 1 auto;
+}
+.flow-open {
+  white-space: nowrap;
+}
+.flow-player {
+  display: grid;
+  gap: 14px;
+}
+.flow-map {
+  min-width: 0;
+}
+.flow-diagram {
+  overflow-x: auto;
+}
+.fl-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 900px;
+  font-family: var(--font-body);
+}
+.fl-lane rect {
+  fill: transparent;
+  stroke: var(--bg-border);
+}
+.fl-lane text {
+  fill: var(--text-secondary);
+  font-size: 12px;
+}
+.fl-lane-dim text {
+  fill: var(--text-muted);
+  font-style: italic;
+}
+.fl-edge {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 2;
+}
+.fl-edge.fl-ctrl {
+  stroke: var(--amber);
+  stroke-dasharray: 7 6;
+}
+.fl-edge.fl-data {
+  stroke: var(--cyan);
+}
+.fl-edge.is-active {
+  stroke-width: 4;
+}
+.fl-legend text {
+  font-size: 11px;
+  fill: var(--text-secondary);
+}
+.fl-node circle {
+  fill: var(--bg-card);
+  stroke: var(--text-muted);
+  stroke-width: 2;
+}
+.fl-node text {
+  fill: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  text-anchor: middle;
+}
+.fl-node.fl-p-data circle,
+.fl-node.fl-p-both circle {
+  stroke: var(--cyan);
+}
+.fl-node.fl-p-control circle {
+  stroke: var(--amber);
+}
+.fl-node.is-done circle {
+  fill: var(--bg-glass);
+}
+.fl-node.is-active circle {
+  fill: var(--cyan);
+  stroke: var(--text-primary);
+}
+.fl-node.is-active text {
+  fill: var(--bg-base);
+}
+.flow-strip,
+.flow-diagram-btn,
+.flow-controls {
+  display: none;
+}
+.flow-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.flow-step {
+  border-top: 1px solid var(--bg-border);
+  padding: 14px 0;
+  min-width: 0;
+}
+.fs-kicker {
+  margin: 0 0 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+.fs-chip {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+.fs-chip-data,
+.fs-chip-both {
+  color: var(--cyan);
+}
+.fs-chip-control {
+  color: var(--amber);
+}
+.aa-flow .fs-title {
+  margin: 0 0 8px;
+  font-size: 1.2rem;
+  line-height: 1.3;
+}
+.fs-proc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0 0 8px;
+  font-size: 0.9375rem;
+}
+.fs-proc div {
+  display: flex;
+  gap: 6px;
+}
+.fs-proc dt {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+.fs-proc dd {
+  margin: 0;
+}
+.fs-sum,
+.fs-detail,
+.fs-deep {
+  margin: 0 0 8px;
+  max-width: 76ch;
+}
+.fs-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--violet);
+}
+.fs-more {
+  margin: 6px 0;
+}
+.fs-more > summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 28px;
+}
+.fs-more ul {
+  margin: 6px 0;
+}
+.fs-sources {
+  padding-left: 18px;
+}
+.fs-sources li {
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+.fs-pin,
+.fs-search {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+.fs-classes code {
+  margin-right: 4px;
+}
+.fs-links {
+  margin: 8px 0 0;
+  font-size: 0.875rem;
+}
+.fs-predict {
+  border: 1px dashed var(--violet);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 0 0 10px;
+}
+.fs-predict-q {
+  margin: 0 0 8px;
+}
+.fs-predict-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.fs-predict-choices button.is-right {
+  border-color: var(--emerald);
+  color: var(--emerald);
+}
+.fs-predict-choices button.is-wrong {
+  border-color: var(--crimson);
+  color: var(--crimson);
+}
+.aa-code {
+  margin: 10px 0;
+  border: 1px solid var(--bg-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.aa-code figcaption {
+  padding: 6px 10px;
+  font-size: 0.8125rem;
+  background: var(--bg-glass);
+  overflow-wrap: anywhere;
+}
+.aa-code-body {
+  display: flex;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 18px;
+  background: linear-gradient(var(--cyan-dim), var(--cyan-dim)) 0 calc(8px + var(--hl) * 18px) / 100% 18px no-repeat;
+}
+.aa-code-body pre {
+  margin: 0;
+  padding: 8px 10px;
+  font: inherit;
+  background: none;
+  border: 0;
+}
+.aa-code-gutter {
+  color: var(--text-muted);
+  text-align: right;
+  user-select: none;
+  border-right: 1px solid var(--bg-border) !important;
+}
+.aa-code-attr {
+  margin: 0;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.trace-more {
+  margin-top: 24px;
+}
+.trace-more li {
+  margin: 6px 0;
+}
+.trace-more a,
+.fs-links a,
+.fs-sources a {
+  display: inline-block;
+  min-height: 24px;
+  padding: 2px 0;
+}
+
+/* Player layout: only with JS (html.js is set in <head> before first paint, so no shift). */
+html.js .flow-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+html.js .flow-steps {
+  display: grid;
+}
+html.js .flow-step {
+  grid-area: 1 / 1;
+  visibility: hidden;
+  border-top: 0;
+  padding: 4px 0 0;
+}
+html.js .flow-step.is-active {
+  visibility: visible;
+}
+html.js .predict-pending .fs-body {
+  visibility: hidden;
+}
+html.js .flow-step:not(.is-active) .fs-body {
+  visibility: hidden;
+}
+.flow-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.flow-dot {
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--bg-border);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font: 600 0.8125rem var(--font-body);
+  cursor: pointer;
+}
+.flow-dot[aria-current="step"] {
+  background: var(--cyan);
+  color: var(--bg-base);
+  border-color: var(--cyan);
+}
+.flow-extra {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.flow-controls button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.fl-node {
+  cursor: pointer;
+}
+@media (min-width: 981px) {
+  html.js .aa-flow-embed .flow-player {
+    grid-template-areas: "map" "ctl" "steps";
+  }
+  html.js .aa-flow-page .flow-player {
+    grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "map steps" "ctl steps";
+    align-items: start;
+    column-gap: 22px;
+  }
+  html.js .aa-flow .flow-map {
+    grid-area: map;
+  }
+  html.js .aa-flow .flow-steps {
+    grid-area: steps;
+  }
+  html.js .aa-flow .flow-controls {
+    grid-area: ctl;
+  }
+  html.js .aa-flow-page .flow-extra {
+    margin-left: 0;
+  }
+}
+@media (max-width: 980px) {
+  html.js .flow-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 2px;
+    list-style: none;
+    margin: 0 0 8px;
+    padding: 0;
+    font-size: 0.8125rem;
+  }
+  html.js .flow-strip li {
+    padding: 4px 8px;
+    border-radius: 999px;
+    color: var(--text-secondary);
+  }
+  html.js .flow-strip li + li::before {
+    content: "›";
+    margin-right: 6px;
+    color: var(--text-muted);
+  }
+  html.js .flow-diagram-btn {
+    display: inline-flex;
+  }
+  html.js .aa-flow:not(.show-diagram) .flow-diagram {
+    display: none;
+  }
+  html.js .flow-controls {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    background: var(--bg-surface);
+    padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--bg-border);
+  }
+  html.js .flow-controls {
+    flex-wrap: nowrap;
+  }
+  html.js .flow-controls .flow-dots {
+    display: none;
+  }
+  .flow-controls button {
+    min-height: 48px;
+    min-width: 48px;
+    padding: 0 10px;
+    white-space: nowrap;
+  }
+  .flow-controls .flow-prev,
+  .flow-controls .flow-next {
+    flex: 1 1 0;
+  }
+  .flow-extra {
+    margin-left: 0;
+  }
+}
+.aa-flow[data-active-lane="app"] .flow-strip li[data-lane="app"],
+.aa-flow[data-active-lane="audioserver"] .flow-strip li[data-lane="audioserver"],
+.aa-flow[data-active-lane="vendor_hal"] .flow-strip li[data-lane="vendor_hal"],
+.aa-flow[data-active-lane="kernel"] .flow-strip li[data-lane="kernel"],
+.aa-flow[data-active-lane="hardware"] .flow-strip li[data-lane="hardware"],
+.aa-flow[data-active-lane="system_server"] .flow-strip li[data-lane="system_server"] {
+  background: var(--cyan);
+  color: var(--bg-base);
+  font-weight: 600;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .fl-edge.is-active.fl-data {
+    stroke-dasharray: 100;
+    animation: flDraw 0.3s ease-out 1;
+  }
+  @keyframes flDraw {
+    from {
+      stroke-dashoffset: 100;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-edge.is-active {
+    animation: none;
+  }
+}
+.home-trace {
+  display: block;
+  margin: 28px 0 8px;
+  padding: 20px 22px;
+  border: 1px solid var(--cyan);
+  text-decoration: none;
+  color: var(--text-primary);
+}
+.home-trace h2 {
+  margin: 10px 0 6px;
+  font-size: 1.4rem;
+}
+.home-trace p {
+  margin: 0 0 10px;
+  color: var(--text-secondary);
+  max-width: 72ch;
+}
+.home-trace-cta {
+  color: var(--cyan);
+  font-weight: 600;
+}
+.home-trace:hover .home-trace-cta,
+.home-trace:focus-visible .home-trace-cta {
+  text-decoration: underline;
+}
+html:not(.js) .trace-keys {
+  display: none;
+}

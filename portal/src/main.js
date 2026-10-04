@@ -14,6 +14,7 @@ const LIVE = {
   architecture: () => import("./pages/architecture.js").then((m) => m.pageArchitecture),
   debug: () => import("./pages/debug.js").then((m) => m.pageDebug),
   progression: () => import("./pages/progression.js").then((m) => m.pageProgression),
+  trace: () => import("./pages/trace.js").then((m) => m.pageTrace),
 };
 
 let fundamentals = null; // loaded module, so we can stop its animation loop on leave

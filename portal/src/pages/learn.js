@@ -13,6 +13,7 @@ import {
 } from "../lib/markdown.js";
 import UPDATED from "../content/updated.json";
 import { mountLessonDiagram } from "../diagrams/learnBind.js";
+import { scanIslands } from "../lib/islands.js";
 import { REPO, anchorHeadings, learnPageHtml, treeHtml } from "./learnMarkup.js";
 
 let learnGen = 0;
@@ -95,6 +96,7 @@ export async function pageLearn(arg) {
     wireCopyButtons(md);
     if (section) jumpTo(section);
     else if (!location.hash.startsWith("#/") && location.hash.length > 1) jumpTo(decodeURIComponent(location.hash.slice(1)));
+    scanIslands(md);
     highlightCode(md).catch(() => {});
     hydrateMermaid(md).catch(() => {
       /* diagram source stays visible as a code block */

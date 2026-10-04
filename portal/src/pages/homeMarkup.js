@@ -27,6 +27,12 @@ export function homeHtml() {
       </div>
     </section>
     <div class="wrap">
+      <a class="card home-trace" href="/trace/play/">
+        <span class="badge">Trace the Audio Path</span>
+        <h2>What happens when I press Play?</h2>
+        <p>Step through 14 hops from <code>AudioTrack</code> to the speaker: which process and thread runs each one, which carry PCM and which only control, and the exact Android 15 source line behind each step.</p>
+        <span class="home-trace-cta">Start the trace →</span>
+      </a>
       <h2 class="section-title">Which path are you on?</h2>
       <div class="path-grid">
         <a class="path-card" href="#/learn/00"><div class="path-ico">01</div><h3>Student</h3><p>Module 00, then the Fundamentals studio, then climb the catalog. Rank yourself on Progression.</p></a>
