@@ -4597,6 +4597,21 @@ html:not(.js) .trace-keys {
   min-height: 44px;
   margin-top: 6px;
 }
+/* With JS the controls are built when the item hydrates (near the viewport); reserve
+   their height so a fast scroll or deep link does not shift the page. */
+html.js .practice-work:empty {
+  min-height: 223px;
+}
+@media (max-width: 980px) {
+  html.js .practice-work:empty {
+    min-height: 215px;
+  }
+}
+@media (max-width: 420px) {
+  html.js .practice-work:empty {
+    min-height: 247px;
+  }
+}
 /* No JS: questions and answers stay readable (answers in closed <details>); the
    interactive controls are hidden because they cannot work. */
 html:not(.js) .practice-work,
