@@ -5,7 +5,21 @@
 import { load, save } from "../lib/storage.js";
 import { track } from "../lib/analytics.js";
 
+// The answer controls only work with JS, so they are built here rather than
+// prerendered (keeps every module page's HTML small; JS-off never sees them).
+export function workHtml(id) {
+  return `<label class="practice-label" for="${id}-a">Your answer (stays on this device)</label>
+<textarea id="${id}-a" class="practice-input" rows="4" placeholder="Write your answer first…"></textarea>
+<div class="practice-actions"><button type="button" class="btn" data-reveal disabled>Show expected answer</button>
+<span class="practice-hint muted" data-hint>Type an answer to unlock it.</span></div>`;
+}
+
 export function hydrate(item) {
+  const work = item.querySelector(".practice-work");
+  if (work && !work.querySelector(".practice-input")) {
+    work.innerHTML = workHtml(`practice-${item.dataset.module || "x"}-${item.dataset.item}`);
+    item.insertAdjacentHTML("beforeend", `<label class="practice-self" hidden><input type="checkbox" data-self> I got it right</label>`);
+  }
   const key = `${item.dataset.module}:${item.dataset.item}`;
   const input = item.querySelector(".practice-input");
   const btn = item.querySelector("[data-reveal]");

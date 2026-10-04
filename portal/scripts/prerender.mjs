@@ -418,7 +418,55 @@ const beasties = new Beasties({
 const htmlFiles = ["index.html", "learn/index.html", "trace/index.html", "trace/play/index.html", ...MODULES.map((m) => `learn/${m.id}/index.html`)];
 for (const rel of htmlFiles) {
   const file = path.join(dist, rel);
-  fs.writeFileSync(file, await beasties.process(fs.readFileSync(file, "utf8")));
+  fs.writeFileSync(file, collapseIndent(trimCritical(await beasties.process(fs.readFileSync(file, "utf8")))));
+}
+
+// Module pages sit close to the first TCP window (~14 KB gzipped); crossing it costs a
+// round trip of FCP on slow mobile links. Two size trims that do not change rendering:
+// 1. Beasties inlines every rule the markup matches, including ones for content far below
+//    the first screen (practice, quiz, prev/next, print, :hover). Those apply once the full
+//    stylesheet loads (the <noscript> sheet covers JS-off).
+// 2. Template indentation after a newline is dropped (the newline stays, so whitespace
+//    rendering is unchanged); <pre>, <textarea>, <script> and <style> are left alone.
+function trimCritical(html) {
+  const defer = /^(\.practice|html:not\(\.js\) \.practice|html\.js \.practice|\.module-nav|\.mod-nav-|\.aa-quiz|\.quiz|html:not\(\.js\) \.quiz|\.md-body :is\(\.aa-quiz)/;
+  const keepSel = (sel) => !sel.split(",").every((x) => defer.test(x.trim()) || x.includes(":hover"));
+  const filter = (css) => {
+    let out = "";
+    let i = 0;
+    while (i < css.length) {
+      const open = css.indexOf("{", i);
+      if (open < 0) {
+        out += css.slice(i);
+        break;
+      }
+      const prelude = css.slice(i, open);
+      let depth = 1;
+      let j = open + 1;
+      while (j < css.length && depth) {
+        if (css[j] === "{") depth++;
+        else if (css[j] === "}") depth--;
+        j++;
+      }
+      const body = css.slice(open + 1, j - 1);
+      if (prelude.startsWith("@media print")) {
+        // print styles are never critical
+      } else if (prelude.startsWith("@media") || prelude.startsWith("@supports")) {
+        const inner = filter(body);
+        if (inner.trim()) out += `${prelude}{${inner}}`;
+      } else if (prelude.startsWith("@") || keepSel(prelude)) out += `${prelude}{${body}}`;
+      i = j;
+    }
+    return out;
+  };
+  return html.replace(/<style>([\s\S]*?)<\/style>(?=<link rel="stylesheet"[^>]*media="print")/, (_, css) => `<style>${filter(css)}</style>`);
+}
+
+function collapseIndent(html) {
+  return html
+    .split(/(<pre[\s>][\s\S]*?<\/pre>|<textarea[\s\S]*?<\/textarea>|<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>)/)
+    .map((part, i) => (i % 2 ? part : part.replace(/\n[ \t]+/g, "\n")))
+    .join("");
 }
 
 if (analyticsSnippet) console.log(`analytics: Vercel Web Analytics injected (${ANALYTICS})`);
