@@ -275,6 +275,15 @@ Timestamps jump by hundreds of ms at a route change
 | Ignoring standby on first-prompt bugs | Different physics |
 | Fixing 44.1 vs 48 by “it’s just 0.2 kHz” | It is a resample every frame |
 
+## Check yourself
+
+Pick an answer before you look. The explanation, with the Android 15 source line, opens after you choose.
+
+```aa-quiz
+# 1 single-choice check (portal/content/quizzes/checks.yaml), interactive on the site: https://androidaudio.vercel.app/learn/15/#sec-check-yourself
+ids: [q-hal-xrun]
+```
+
 ## Practice
 
 Product: 48 kHz, HAL period 240 frames, 4 periods. App AudioTrack buffer is 1920 frames. DSP claims 3 ms. Amp 0.5 ms.

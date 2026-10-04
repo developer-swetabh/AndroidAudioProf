@@ -700,6 +700,15 @@ Use this table to jump directly to the right layer:
 
 ---
 
+## Check yourself
+
+Pick an answer before you look. The explanation, with the Android 15 source line, opens after you choose.
+
+```aa-quiz
+# 4 single-choice checks (portal/content/quizzes/checks.yaml), interactive on the site: https://androidaudio.vercel.app/learn/02a/#sec-check-yourself
+ids: [q-routing-when, q-standby-exit, q-fastmixer-writer, q-pcm-processes]
+```
+
 ## Practical Exercise
 
 ### Exercise 1 — Trace a live playback

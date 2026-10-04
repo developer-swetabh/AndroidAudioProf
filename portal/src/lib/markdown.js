@@ -1,6 +1,7 @@
 import { esc } from "./dom.js";
 import { MODULES } from "../content/catalog.js";
 import { RCA_CASES } from "../content/rcaCases.js";
+import { practiceHtml } from "../pages/quizMarkup.js";
 
 /** GitHub-style .md hrefs in the textbook become portal hash routes. Markdown files stay canonical. */
 export function mapCurriculumHref(href) {
@@ -54,9 +55,18 @@ export function parseFlowBlock(body) {
   return { src, from: r ? +r[1] : 0, to: r ? +(r[2] || r[1]) : 0 };
 }
 
+/** ```aa-quiz fenced block → quiz ids. */
+export function parseQuizBlock(body) {
+  const t = decodeEntities(body);
+  const ids = (/^\s*ids:\s*\[([^\]]*)\]/m.exec(t) || [])[1] || "";
+  return { ids: ids.split(",").map((s) => s.trim()).filter(Boolean) };
+}
+
 /**
- * opts.flow({src, from, to}) renders the static widget (prerender). Without it a
- * placeholder is emitted and src/elements/aa-flow.js renders it on hydration.
+ * opts.flow({src, from, to}) / opts.quiz({ids}) render the static widgets
+ * (prerender). Without them a placeholder is emitted and the island
+ * (src/elements/aa-flow.js, aa-quiz.js) renders it on hydration.
+ * opts.moduleId keys the gated Practice items.
  */
 export function enhanceModuleHtml(html, opts = {}) {
   let h = rewriteCurriculumLinks(html);
@@ -64,6 +74,11 @@ export function enhanceModuleHtml(html, opts = {}) {
     const b = parseFlowBlock(body);
     if (opts.flow) return opts.flow(b);
     return `<div class="aa-flow aa-flow-embed aa-flow-ph" data-island="flow" data-flow="${esc(b.src)}" data-from="${b.from || ""}" data-to="${b.to || ""}" data-variant="embed" data-render="1"><p class="muted">Loading the interactive trace…</p></div>`;
+  });
+  h = h.replace(/<pre><code class="language-aa-quiz">([\s\S]*?)<\/code><\/pre>/g, (_, body) => {
+    const b = parseQuizBlock(body);
+    if (opts.quiz) return opts.quiz(b);
+    return `<div class="aa-quizzes aa-quiz-ph" data-island="quiz" data-ids="${esc(b.ids.join(","))}" data-module="${esc(opts.moduleId || "")}" data-render="1" style="min-height:${b.ids.length * 300}px"><p class="muted">Loading the check…</p></div>`;
   });
   h = h.replace(
     /<h2[^>]*>Short Answer<\/h2>([\s\S]*?)(?=<h2|$)/i,
@@ -75,10 +90,12 @@ export function enhanceModuleHtml(html, opts = {}) {
     (_, body) =>
       `<section class="callout callout-amber" id="sec-mental-model"><h2>Mental Model</h2>${body}</section>`,
   );
+  // Practice: each question gets a write-first box; the expected answer opens after an attempt.
+  // Without JS the answers sit in closed <details> (readable, and crawlable).
   h = h.replace(
-    /<h2[^>]*>Practice<\/h2>([\s\S]*?)(?=<h2|$)/i,
-    (_, body) =>
-      `<details class="practice-fold" id="sec-practice"><summary>Practice</summary>${body}</details>`,
+    /<h2[^>]*>(Practice(?:\s*[—–-][^<]*)?)<\/h2>([\s\S]*?)(?=<h2|$)/i,
+    (_, title, body) =>
+      `<section class="practice"><h2 id="sec-practice">${title}</h2>${practiceHtml(body, { moduleId: opts.moduleId })}</section>`,
   );
   h = h.replace(
     /<pre><code/g,

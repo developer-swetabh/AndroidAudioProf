@@ -4415,3 +4415,192 @@ html.js .flow-step:not(.is-active) .fs-body {
 html:not(.js) .trace-keys {
   display: none;
 }
+
+/* ---------- Learning checks (aa-quiz) and gated Practice ---------- */
+.aa-quizzes {
+  display: grid;
+  gap: 16px;
+  margin: 16px 0 24px;
+}
+.aa-quiz {
+  border: 1px solid var(--bg-border);
+  border-left: 4px solid var(--violet);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  padding: 14px 16px;
+}
+.quiz-fs {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.quiz-fs legend {
+  padding: 0;
+  margin-bottom: 10px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.quiz-kicker {
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--violet);
+  margin-bottom: 4px;
+}
+.quiz-choices {
+  display: grid;
+  gap: 6px;
+}
+.quiz-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  padding: 8px 10px;
+  min-height: 44px;
+  border: 1px solid var(--bg-border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  cursor: pointer;
+}
+.quiz-choice:has(input:focus-visible) {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+.quiz-choice input {
+  accent-color: var(--cyan);
+  margin: 0 2px 0 0;
+  align-self: center;
+}
+.quiz-letter {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.quiz-text {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.quiz-fb {
+  flex-basis: 100%;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.quiz-fb:empty {
+  display: none;
+}
+.quiz-choice.is-correct {
+  border-color: var(--emerald);
+}
+.quiz-choice.is-correct .quiz-fb {
+  color: var(--emerald);
+}
+.quiz-choice.is-wrong {
+  border-color: var(--crimson);
+}
+.quiz-choice.is-wrong .quiz-fb {
+  color: var(--crimson);
+}
+.quiz-choice:has(input:disabled) {
+  cursor: default;
+}
+.quiz-actions,
+.practice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.quiz-actions button,
+.practice-actions button {
+  min-height: 44px;
+}
+.quiz-actions button:disabled,
+.practice-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.quiz-status {
+  font-weight: 600;
+}
+.quiz-answer,
+.practice-answer {
+  margin-top: 10px;
+}
+.quiz-answer > summary,
+.practice-answer > summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-height: 28px;
+}
+.quiz-explain p,
+.practice-answer-body > :first-child {
+  margin-top: 6px;
+}
+.quiz-why-not,
+.quiz-src,
+.quiz-reread {
+  font-size: 0.9375rem;
+}
+.quiz-src {
+  overflow-wrap: anywhere;
+}
+.practice {
+  margin: 24px 0;
+}
+.practice-item {
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  padding: 12px 16px;
+  margin: 12px 0;
+}
+.practice-q > :first-child {
+  margin-top: 0;
+}
+.practice-label {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.practice-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 96px;
+  padding: 8px 10px;
+  border: 1px solid var(--bg-border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font: inherit;
+  resize: vertical;
+}
+.practice-input:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 1px;
+}
+.practice-self {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 6px;
+}
+/* No JS: questions and answers stay readable (answers in closed <details>); the
+   interactive controls are hidden because they cannot work. */
+html:not(.js) .practice-work,
+html:not(.js) .quiz-actions {
+  display: none;
+}
+/* With JS: the answer stays hidden until an attempt (no peeking via the summary). */
+html.js .aa-quiz:not(.is-answered):not(.island-failed) .quiz-answer,
+html.js .practice-item:not(.is-revealed):not(.island-failed) .practice-answer {
+  display: none;
+}
+.aa-quiz [hidden],
+.practice-item [hidden] {
+  display: none !important;
+}

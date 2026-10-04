@@ -354,6 +354,15 @@ connectExternalDevice never called for a USB/BT jack
 | Treating AudioControl as Core HAL | Still a car sidecar |
 | Assuming Android 15 has full CAP-over-AIDL | That is documented from Android 16 |
 
+## Check yourself
+
+Pick an answer before you look. The explanation, with the Android 15 source line, opens after you choose.
+
+```aa-quiz
+# 3 single-choice checks (portal/content/quizzes/checks.yaml), interactive on the site: https://androidaudio.vercel.app/learn/08/#sec-check-yourself
+ids: [q-standby-exit, q-standby-sequence, q-hal-xrun]
+```
+
 ## Practice
 
 `service list` shows `android.hardware.audio.core.IModule/default`. Flinger thread is not in software standby. Stream dump (teaching reconstruction) shows `StreamDescriptor.State=STANDBY` and `observable.frames` frozen. The app is PLAYING and `write()` succeeds.

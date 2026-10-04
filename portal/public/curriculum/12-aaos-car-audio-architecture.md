@@ -295,6 +295,15 @@ Zero zones
 | Treating AudioControl as sufficient | No PCM without Core HAL |
 | Editing DSP graphs to fix a context map | Prove mixes first |
 
+## Check yourself
+
+Pick an answer before you look. The explanation, with the Android 15 source line, opens after you choose.
+
+```aa-quiz
+# 1 single-choice check (portal/content/quizzes/checks.yaml), interactive on the site: https://androidaudio.vercel.app/learn/12/#sec-check-yourself
+ids: [q-aaos-duck]
+```
+
 ## Practice
 
 A music app on the rear display plays from the **driver** speakers. Rear headphones are silent.

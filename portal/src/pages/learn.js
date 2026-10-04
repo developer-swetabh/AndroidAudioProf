@@ -87,7 +87,7 @@ export async function pageLearn(arg) {
       const [text, { parseMarkdown }] = await Promise.all([res.text(), import("../lib/mdParse.js")]);
       if (gen !== learnGen) return;
       if (!res.ok) throw new Error(res.statusText);
-      const { html, tocHtml } = anchorHeadings(enhanceModuleHtml(parseMarkdown(text)), (s) => sectionHref(id, s));
+      const { html, tocHtml } = anchorHeadings(enhanceModuleHtml(parseMarkdown(text), { moduleId: mod.id }), (s) => sectionHref(id, s));
       md.innerHTML = html;
       $("#learnToc").innerHTML = tocHtml;
     }

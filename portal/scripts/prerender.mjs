@@ -29,6 +29,7 @@ import { homeHtml } from "../src/pages/homeMarkup.js";
 import { anchorHeadings, learnPageHtml, treeHtml } from "../src/pages/learnMarkup.js";
 import { enhanceModuleHtml } from "../src/lib/markdown.js";
 import { flowHtml, tracePlayPageHtml, traceIndexHtml } from "../src/pages/traceMarkup.js";
+import { quizzesHtml } from "../src/pages/quizMarkup.js";
 
 const portal = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dist = path.join(portal, "dist");
@@ -39,6 +40,7 @@ const updated = JSON.parse(fs.readFileSync(path.join(portal, "src/content/update
 const GEN = path.join(portal, "src/content/generated");
 const FLOW_INDEX = JSON.parse(fs.readFileSync(path.join(GEN, "index.json"), "utf8"));
 const FLOWS = Object.fromEntries(FLOW_INDEX.flows.map((f) => [f.id, JSON.parse(fs.readFileSync(path.join(GEN, "flows", `${f.id}.json`), "utf8"))]));
+const QUIZZES = JSON.parse(fs.readFileSync(path.join(GEN, "quizzes.json"), "utf8"));
 // Analytics is opt-in at build time (see src/lib/analytics.js):
 //   ANALYTICS=vercel         Vercel Web Analytics page views (free on Hobby)
 //   ANALYTICS=vercel+events  also custom events (Vercel custom events need a paid plan)
@@ -206,7 +208,12 @@ for (const [i, mod] of MODULES.entries()) {
     if (!f) throw new Error(`prerender: module ${mod.id} embeds unknown flow ${src}`);
     return flowHtml(f, { variant: "embed", from: from || 1, to: to || f.steps.length, modHref: cleanHref });
   };
-  const anchored = anchorHeadings(enhanceModuleHtml(renderMd(md), { flow: embedFlow }), (sec) => `#${sec}`);
+  const embedQuiz = ({ ids }) => {
+    const missing = ids.filter((q) => !QUIZZES[q]);
+    if (missing.length) throw new Error(`prerender: module ${mod.id} embeds unknown check(s) ${missing.join(", ")}`);
+    return quizzesHtml(ids.map((q) => QUIZZES[q]), { moduleId: mod.id, modHref: cleanHref });
+  };
+  const anchored = anchorHeadings(enhanceModuleHtml(renderMd(md), { flow: embedFlow, quiz: embedQuiz, moduleId: mod.id }), (sec) => `#${sec}`);
   const tocHtml = anchored.tocHtml;
   // Same wrapper the app adds (lib/markdown.js wrapTables), so tables do not move on boot.
   const articleHtml = anchored.html.replace(/<table>/g, '<div class="table-wrap" tabindex="0"><table>').replace(/<\/table>/g, "</table></div>");
