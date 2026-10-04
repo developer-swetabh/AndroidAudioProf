@@ -1,0 +1,1059 @@
+{
+ "external/tinyalsa:pcm.c#int pcm_write(struct pcm *pcm, const void *data, unsigned int count)": {
+  "start": 536,
+  "lines": [
+   "int pcm_write(struct pcm *pcm, const void *data, unsigned int count)",
+   "{",
+   "    struct snd_xferi x;",
+   "",
+   "    if (pcm->flags & PCM_IN)",
+   "        return -EINVAL;",
+   "",
+   "    x.buf = (void*)data;",
+   "    x.frames = count / (pcm->config.channels *",
+   "                        pcm_format_to_bits(pcm->config.format) / 8);",
+   "",
+   "    for (;;) {",
+   "        if (!pcm->running) {",
+   "            int prepare_error = pcm_prepare(pcm);",
+   "            if (prepare_error)",
+   "                return prepare_error;",
+   "            if (pcm->ops->ioctl(pcm->data, SNDRV_PCM_IOCTL_WRITEI_FRAMES, &x))",
+   "                return oops(pcm, errno, \"cannot write initial data\");",
+   "            pcm->running = true;",
+   "            return 0;",
+   "        }",
+   "        if (pcm->ops->ioctl(pcm->data, SNDRV_PCM_IOCTL_WRITEI_FRAMES, &x)) {",
+   "            pcm->prepared = false;",
+   "            pcm->running = false;",
+   "            if (errno == EPIPE) {"
+  ]
+ },
+ "frameworks/av:media/libaudioclient/AudioTrack.cpp#ssize_t AudioTrack::write(const void* buffer, size_t userSize, bool blocking)": {
+  "start": 2333,
+  "lines": [
+   "// -------------------------------------------------------------------------",
+   "",
+   "ssize_t AudioTrack::write(const void* buffer, size_t userSize, bool blocking)",
+   "{",
+   "    if (mTransfer != TRANSFER_SYNC && mTransfer != TRANSFER_SYNC_NOTIF_CALLBACK) {",
+   "        return INVALID_OPERATION;",
+   "    }"
+  ]
+ },
+ "frameworks/av:media/libaudioclient/AudioTrack.cpp#status = audioFlinger->createTrack(aidlInput.value(), response);": {
+  "start": 1918,
+  "lines": [
+   "                                        __func__, mPortId));",
+   "    }",
+   "    status = audioFlinger->createTrack(aidlInput.value(), response);",
+   "",
+   "    IAudioFlinger::CreateTrackOutput output{};",
+   "    if (status == NO_ERROR) {",
+   "        auto trackOutput = IAudioFlinger::CreateTrackOutput::fromAidl(response);",
+   "        if (!trackOutput.ok()) {",
+   "            return logIfErrorAndReturnStatus(",
+   "                    BAD_VALUE,",
+   "                    StringPrintf(\"%s(%d): Could not create track output due to invalid response\",",
+   "                                 __func__, mPortId));",
+   "        }"
+  ]
+ },
+ "frameworks/av:media/libaudioclient/AudioTrack.cpp#status = createTrack_l();": {
+  "start": 667,
+  "lines": [
+   "        // thread begins in paused state, and will not reference us until start()",
+   "    }",
+   "",
+   "    // create the IAudioTrack",
+   "    {",
+   "        AutoMutex lock(mLock);",
+   "        status = createTrack_l();",
+   "    }",
+   "    if (status != NO_ERROR) {",
+   "        if (mAudioTrackThread != 0) {",
+   "            mAudioTrackThread->requestExit();   // see comment in AudioTrack.h",
+   "            mAudioTrackThread->requestExitAndWait();",
+   "            mAudioTrackThread.clear();"
+  ]
+ },
+ "frameworks/av:media/libaudioclient/AudioTrack.cpp#status_t AudioTrack::set(": {
+  "start": 400,
+  "lines": [
+   "    }",
+   "}",
+   "status_t AudioTrack::set(",
+   "        audio_stream_type_t streamType,",
+   "        uint32_t sampleRate,",
+   "        audio_format_t format,",
+   "        audio_channel_mask_t channelMask,",
+   "        size_t frameCount,",
+   "        audio_output_flags_t flags,"
+  ]
+ },
+ "frameworks/av:media/libaudioclient/AudioTrack.cpp#status_t AudioTrack::start()": {
+  "start": 771,
+  "lines": [
+   "// -------------------------------------------------------------------------",
+   "",
+   "status_t AudioTrack::start()",
+   "{",
+   "    AutoMutex lock(mLock);",
+   "",
+   "    if (mState == STATE_ACTIVE) {",
+   "        return INVALID_OPERATION;",
+   "    }",
+   "",
+   "    ALOGV(\"%s(%d): prior state:%s\", __func__, mPortId, stateToString(mState));",
+   "",
+   "    // Defer logging here due to OpenSL ES repeated start calls."
+  ]
+ },
+ "frameworks/av:media/libaudioclient/AudioTrack.cpp#status_t err = obtainBuffer(&audioBuffer,": {
+  "start": 2359,
+  "lines": [
+   "    size_t written = 0;",
+   "    Buffer audioBuffer;",
+   "",
+   "    while (userSize >= mFrameSize) {",
+   "        audioBuffer.frameCount = userSize / mFrameSize;",
+   "",
+   "        status_t err = obtainBuffer(&audioBuffer,",
+   "                blocking ? &ClientProxy::kForever : &ClientProxy::kNonBlocking);",
+   "        if (err < 0) {",
+   "            if (written > 0) {",
+   "                break;",
+   "            }",
+   "            if (err == TIMED_OUT || err == -EINTR) {",
+   "                err = WOULD_BLOCK;",
+   "            }",
+   "            return ssize_t(err);",
+   "        }",
+   "",
+   "        size_t toWrite = audioBuffer.size();",
+   "        memcpy(audioBuffer.raw, buffer, toWrite);",
+   "        buffer = ((const char *) buffer) + toWrite;",
+   "        userSize -= toWrite;",
+   "        written += toWrite;",
+   "",
+   "        releaseBuffer(&audioBuffer);",
+   "    }",
+   "",
+   "    if (written > 0) {"
+  ]
+ },
+ "frameworks/av:media/libaudioclient/AudioTrackShared.cpp#void ClientProxy::releaseBuffer(Buffer* buffer)": {
+  "start": 386,
+  "lines": [
+   "void ClientProxy::releaseBuffer(Buffer* buffer)",
+   "{",
+   "    LOG_ALWAYS_FATAL_IF(buffer == NULL);",
+   "    size_t stepCount = buffer->mFrameCount;",
+   "    if (stepCount == 0 || mIsShutdown) {",
+   "        // prevent accidental re-use of buffer",
+   "        buffer->mFrameCount = 0;",
+   "        buffer->mRaw = NULL;",
+   "        buffer->mNonContig = 0;",
+   "        return;",
+   "    }",
+   "    LOG_ALWAYS_FATAL_IF(!(stepCount <= mUnreleased && mUnreleased <= mFrameCount),",
+   "            \"%s: mUnreleased out of range, \"",
+   "            \"!(stepCount:%zu <= mUnreleased:%zu <= mFrameCount:%zu), BufferSizeInFrames:%u\",",
+   "            __func__, stepCount, mUnreleased, mFrameCount, getBufferSizeInFrames());",
+   "    mUnreleased -= stepCount;",
+   "    audio_track_cblk_t* cblk = mCblk;",
+   "    // Both of these barriers are required",
+   "    if (mIsOut) {",
+   "        int32_t rear = cblk->u.mStreaming.mRear;",
+   "        android_atomic_release_store(stepCount + rear, &cblk->u.mStreaming.mRear);",
+   "    } else {",
+   "        int32_t front = cblk->u.mStreaming.mFront;",
+   "        android_atomic_release_store(stepCount + front, &cblk->u.mStreaming.mFront);",
+   "    }",
+   "}"
+  ]
+ },
+ "frameworks/av:media/libaudioclient/aidl/android/media/IAudioFlingerService.aidl#CreateTrackResponse createTrack(": {
+  "start": 61,
+  "lines": [
+   "     * created.",
+   "     */",
+   "    CreateTrackResponse createTrack(in CreateTrackRequest request);",
+   "",
+   "    CreateRecordResponse createRecord(in CreateRecordRequest request);",
+   "",
+   "    // FIXME Surprisingly, format/latency don't work for input handles",
+   "",
+   "    /**",
+   "     * Queries the audio hardware state. This state never changes, and therefore can be cached.",
+   "     */",
+   "    int sampleRate(int /* audio_io_handle_t */ ioHandle);",
+   ""
+  ]
+ },
+ "frameworks/av:media/libaudiohal/impl/DeviceHalAidl.cpp#statusTFromBinderStatus(mModule->openOutputStream(args, &ret))": {
+  "start": 544,
+  "lines": [
+   "    {",
+   "        std::lock_guard l(mLock);",
+   "        RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(mModule->openOutputStream(args, &ret)));",
+   "    }",
+   "    StreamContextAidl context(ret.desc, isOffload, aidlHandle);",
+   "    if (!context.isValid()) {",
+   "        AUGMENT_LOG(E, \"Failed to created a valid stream context from the descriptor: %s\",",
+   "                    ret.desc.toString().c_str());",
+   "        return NO_INIT;",
+   "    }",
+   "    auto stream = sp<StreamOutHalAidl>::make(*config, std::move(context), aidlPatch.latenciesMs[0],",
+   "            std::move(ret.stream), mVendorExt, this /*callbackBroker*/);",
+   "    *outStream = stream;"
+  ]
+ },
+ "frameworks/av:media/libaudiohal/impl/StreamHalAidl.cpp#if (!mContext.getCommandMQ()->writeBlocking(&command, 1)) {": {
+  "start": 666,
+  "lines": [
+   "    {",
+   "        std::lock_guard l(mCommandReplyLock);",
+   "        if (!mContext.getCommandMQ()->writeBlocking(&command, 1)) {",
+   "            AUGMENT_LOG(E, \"failed to write command %s to MQ\", command.toString().c_str());",
+   "            return NOT_ENOUGH_DATA;",
+   "        }",
+   "        if (reply == nullptr) {",
+   "            reply = &localReply;",
+   "        }",
+   "        if (!mContext.getReplyMQ()->readBlocking(reply, 1)) {",
+   "            AUGMENT_LOG(E, \"failed to read from reply MQ, command %s\", command.toString().c_str());",
+   "            return NOT_ENOUGH_DATA;",
+   "        }"
+  ]
+ },
+ "frameworks/av:media/libaudiohal/impl/StreamHalAidl.cpp#status_t StreamHalAidl::transfer(": {
+  "start": 407,
+  "lines": [
+   "status_t StreamHalAidl::transfer(void *buffer, size_t bytes, size_t *transferred) {",
+   "    AUGMENT_LOG(V);",
+   "    // TIME_CHECK();  // TODO(b/243839867) reenable only when optimized.",
+   "    if (!mStream || mContext.getDataMQ() == nullptr) return NO_INIT;",
+   "    mWorkerTid.store(gettid(), std::memory_order_release);",
+   "    // Switch the stream into an active state if needed.",
+   "    // Note: in future we may add support for priming the audio pipeline",
+   "    // with data prior to enabling output (thus we can issue a \"burst\" command in the \"standby\"",
+   "    // stream state), however this scenario wasn't supported by the HIDL HAL.",
+   "    if (getState() == StreamDescriptor::State::STANDBY) {",
+   "        StreamDescriptor::Reply reply;",
+   "        RETURN_STATUS_IF_ERROR(sendCommand(makeHalCommand<HalCommand::Tag::start>(), &reply));",
+   "        if (reply.state != StreamDescriptor::State::IDLE) {",
+   "            AUGMENT_LOG(E, \"failed to get the stream out of standby, actual state: %s\",",
+   "                        toString(reply.state).c_str());",
+   "            return INVALID_OPERATION;",
+   "        }",
+   "    }",
+   "    if (!mIsInput) {",
+   "        bytes = std::min(bytes, mContext.getDataMQ()->availableToWrite());",
+   "    }",
+   "    StreamDescriptor::Command burst =",
+   "            StreamDescriptor::Command::make<StreamDescriptor::Command::Tag::burst>(bytes);",
+   "    if (!mIsInput) {",
+   "        if (!mContext.getDataMQ()->write(static_cast<const int8_t*>(buffer), bytes)) {",
+   "            AUGMENT_LOG(E, \"failed to write %zu bytes to data MQ\", bytes);",
+   "            return NOT_ENOUGH_DATA;",
+   "        }",
+   "    }",
+   "    StreamDescriptor::Reply reply;"
+  ]
+ },
+ "frameworks/av:media/libaudiohal/impl/StreamHalAidl.cpp#status_t StreamOutHalAidl::write(": {
+  "start": 816,
+  "lines": [
+   "}",
+   "",
+   "status_t StreamOutHalAidl::write(const void *buffer, size_t bytes, size_t *written) {",
+   "    if (buffer == nullptr || written == nullptr) {",
+   "        return BAD_VALUE;",
+   "    }",
+   "    // For the output scenario, 'transfer' does not modify the buffer.",
+   "    return transfer(const_cast<void*>(buffer), bytes, written);",
+   "}",
+   "",
+   "status_t StreamOutHalAidl::getRenderPosition(uint64_t *dspFrames) {",
+   "    if (dspFrames == nullptr) {",
+   "        return BAD_VALUE;"
+  ]
+ },
+ "frameworks/av:services/audioflinger/AudioFlinger.cpp#lStatus = AudioSystem::getOutputForAttr(&localAttr, &output.outputId": {
+  "start": 1186,
+  "lines": [
+   "        selectedDeviceIds.push_back(input.selectedDeviceId);",
+   "    }",
+   "    lStatus = AudioSystem::getOutputForAttr(&localAttr, &output.outputId, sessionId, &streamType,",
+   "                                            adjAttributionSource, &input.config, input.flags,",
+   "                                            &selectedDeviceIds, &portId, &secondaryOutputs,",
+   "                                            &isSpatialized, &isBitPerfect, &volume, &muted);",
+   "    output.selectedDeviceIds = selectedDeviceIds;",
+   "",
+   "    if (lStatus != NO_ERROR || output.outputId == AUDIO_IO_HANDLE_NONE) {",
+   "        ALOGE(\"createTrack() getOutputForAttr() return error %d or invalid output handle\", lStatus);",
+   "        goto Exit;",
+   "    }",
+   "    // client AudioTrack::set already implements AUDIO_STREAM_DEFAULT => AUDIO_STREAM_MUSIC,"
+  ]
+ },
+ "frameworks/av:services/audioflinger/AudioFlinger.cpp#sp<IAfThreadBase> AudioFlinger::openOutput_l(": {
+  "start": 3084,
+  "lines": [
+   "",
+   "",
+   "sp<IAfThreadBase> AudioFlinger::openOutput_l(audio_module_handle_t module,",
+   "                                                        audio_io_handle_t *output,",
+   "                                                        audio_config_t *halConfig,",
+   "                                                        audio_config_base_t *mixerConfig,",
+   "                                                        audio_devices_t deviceType,",
+   "                                                        const String8& address,",
+   "                                                        audio_output_flags_t *flags,",
+   "                                                        const audio_attributes_t attributes)",
+   "{",
+   "    AudioHwDevice *outHwDev = findSuitableHwDev_l(module, deviceType);",
+   "    if (outHwDev == NULL) {"
+  ]
+ },
+ "frameworks/av:services/audioflinger/AudioFlinger.cpp#status_t AudioFlinger::createTrack(const media::CreateTrackRequest&": {
+  "start": 1108,
+  "lines": [
+   "// IAudioFlinger interface",
+   "",
+   "status_t AudioFlinger::createTrack(const media::CreateTrackRequest& _input,",
+   "                                   media::CreateTrackResponse& _output)",
+   "{",
+   "    ATRACE_CALL();",
+   "    // Local version of VALUE_OR_RETURN, specific to this method's calling conventions.",
+   "    CreateTrackInput input = VALUE_OR_RETURN_STATUS(CreateTrackInput::fromAidl(_input));",
+   "    CreateTrackOutput output;",
+   "",
+   "    sp<IAfTrack> track;",
+   "    sp<Client> client;",
+   "    status_t lStatus;"
+  ]
+ },
+ "frameworks/av:services/audioflinger/AudioFlinger.cpp#status_t status = outHwDev->openOutputStream(": {
+  "start": 3115,
+  "lines": [
+   "    status_t status = outHwDev->openOutputStream(",
+   "            &outputStream,",
+   "            *output,",
+   "            deviceType,",
+   "            flags,",
+   "            halConfig,",
+   "            address.c_str(),",
+   "            {trackMetadata});",
+   "",
+   "    mHardwareStatus = AUDIO_HW_IDLE;",
+   "",
+   "    if (status == NO_ERROR) {",
+   "        if (*flags & AUDIO_OUTPUT_FLAG_MMAP_NOIRQ) {",
+   "            const sp<IAfMmapPlaybackThread> thread = IAfMmapPlaybackThread::create(",
+   "                    this, *output, outHwDev, outputStream, mSystemReady);",
+   "            mMmapThreads.add(*output, thread);",
+   "            ALOGV(\"openOutput_l() created mmap playback thread: ID %d thread %p\",",
+   "                  *output, thread.get());",
+   "            return thread;",
+   "        } else {",
+   "            sp<IAfPlaybackThread> thread;"
+  ]
+ },
+ "frameworks/av:services/audioflinger/Threads.cpp#AUDIO_OUTPUT_FLAG_FAST denied: sharedBuffer": {
+  "start": 2519,
+  "lines": [
+   "                 frameCount, mFrameCount);",
+   "      } else {",
+   "        ALOGD(\"AUDIO_OUTPUT_FLAG_FAST denied: sharedBuffer=%p frameCount=%zu \"",
+   "                \"mFrameCount=%zu format=%#x mFormat=%#x isLinear=%d channelMask=%#x \"",
+   "                \"sampleRate=%u mSampleRate=%u \"",
+   "                \"hasFastMixer=%d tid=%d fastTrackAvailMask=%#x\",",
+   "                sharedBuffer.get(), frameCount, mFrameCount, format, mFormat,",
+   "                audio_is_linear_pcm(format), channelMask, sampleRate,",
+   "                mSampleRate, hasFastMixer(), tid, mFastTrackAvailMask);",
+   "        *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_FAST);",
+   "      }"
+  ]
+ },
+ "frameworks/av:services/audioflinger/Threads.cpp#MonoPipe *monoPipe = new MonoPipe(": {
+  "start": 5240,
+  "lines": [
+   "        // When it wakes up after a maximum latency, it runs a few cycles quickly before",
+   "        // finally blocking.  Note the pipe implementation rounds up the request to a power of 2.",
+   "        MonoPipe *monoPipe = new MonoPipe(mNormalFrameCount * 4, format, true /*writeCanBlock*/);",
+   "        const NBAIO_Format offersFast[1] = {format};",
+   "        size_t numCounterOffersFast = 0;",
+   "#if !LOG_NDEBUG",
+   "        index =",
+   "#else",
+   "        (void)",
+   "#endif",
+   "                monoPipe->negotiate(offersFast, std::size(offersFast),",
+   "                        nullptr /* counterOffers */, numCounterOffersFast);",
+   "        ALOG_ASSERT(index == 0);"
+  ]
+ },
+ "frameworks/av:services/audioflinger/Threads.cpp#PlaybackThread::mixer_state MixerThread::prepareTracks_l(": {
+  "start": 5621,
+  "lines": [
+   "",
+   "// prepareTracks_l() must be called with ThreadBase::mutex() held",
+   "PlaybackThread::mixer_state MixerThread::prepareTracks_l(",
+   "        Vector<sp<IAfTrack>>* tracksToRemove)",
+   "{",
+   "    // clean up deleted track ids in AudioMixer before allocating new tracks",
+   "    (void)mTracks.processDeletedTrackIds([this](int trackId) {",
+   "        // for each trackId, destroy it in the AudioMixer",
+   "        if (mAudioMixer->exists(trackId)) {",
+   "            mAudioMixer->destroy(trackId);",
+   "        }",
+   "    });",
+   "    mTracks.clearDeletedTrackIds();"
+  ]
+ },
+ "frameworks/av:services/audioflinger/Threads.cpp#bool PlaybackThread::threadLoop()": {
+  "start": 4008,
+  "lines": [
+   "}",
+   "",
+   "bool PlaybackThread::threadLoop()",
+   "NO_THREAD_SAFETY_ANALYSIS  // manual locking of AudioFlinger",
+   "{",
+   "    aflog::setThreadWriter(mNBLogWriter.get());",
+   "",
+   "    if (mType == SPATIALIZER) {",
+   "        const pid_t tid = getTid();",
+   "        if (tid == -1) {  // odd: we are here, we must be a running thread.",
+   "            ALOGW(\"%s: Cannot update Spatializer mixer thread priority, no tid\", __func__);",
+   "        } else {",
+   "            const int priorityBoost = requestSpatializerPriority(getpid(), tid);"
+  ]
+ },
+ "frameworks/av:services/audioflinger/Threads.cpp#bytesWritten = mOutput->write((char *)mSinkBuffer + offset, mBytesRemaining);": {
+  "start": 3620,
+  "lines": [
+   "        }",
+   "        ATRACE_BEGIN(\"write\");",
+   "        // FIXME We should have an implementation of timestamps for direct output threads.",
+   "        // They are used e.g for multichannel PCM playback over HDMI.",
+   "        bytesWritten = mOutput->write((char *)mSinkBuffer + offset, mBytesRemaining);",
+   "        ATRACE_END();",
+   "",
+   "        if (mUseAsyncWrite &&",
+   "                ((bytesWritten < 0) || (bytesWritten == (ssize_t)mBytesRemaining))) {"
+  ]
+ },
+ "frameworks/av:services/audioflinger/Threads.cpp#mNormalSink = initFastMixer ? mPipeSink : mOutputSink;": {
+  "start": 5331,
+  "lines": [
+   "    switch (kUseFastMixer) {",
+   "    case FastMixer_Never:",
+   "    case FastMixer_Dynamic:",
+   "        mNormalSink = mOutputSink;",
+   "        break;",
+   "    case FastMixer_Always:",
+   "        mNormalSink = mPipeSink;",
+   "        break;",
+   "    case FastMixer_Static:",
+   "        mNormalSink = initFastMixer ? mPipeSink : mOutputSink;",
+   "        break;",
+   "    }"
+  ]
+ },
+ "frameworks/av:services/audioflinger/Threads.cpp#run(mThreadName, ANDROID_PRIORITY_URGENT_AUDIO);": {
+  "start": 2278,
+  "lines": [
+   "        }",
+   "    }",
+   "    run(mThreadName, ANDROID_PRIORITY_URGENT_AUDIO);",
+   "    mThreadSnapshot.setTid(getTid());",
+   "}",
+   "",
+   "// ThreadBase virtuals",
+   "void PlaybackThread::preExit()",
+   "{",
+   "    ALOGV(\"  preExit()\");",
+   "    status_t result = mOutput->stream->exit();",
+   "    ALOGE_IF(result != OK, \"Error when calling exit(): %d\", result);",
+   "}"
+  ]
+ },
+ "frameworks/av:services/audioflinger/Threads.cpp#snprintf(mThreadName, kThreadNameLength, \"AudioOut_%X\", id);": {
+  "start": 2185,
+  "lines": [
+   "        mIsTimestampAdvancing(kMinimumTimeBetweenTimestampChecksNs)",
+   "{",
+   "    snprintf(mThreadName, kThreadNameLength, \"AudioOut_%X\", id);",
+   "    mFlagsAsString = toString(output->flags);",
+   "    mNBLogWriter = afThreadCallback->newWriter_l(kLogSize, mThreadName);",
+   "",
+   "    // Assumes constructor is called by AudioFlinger with its mutex() held, but",
+   "    // it would be safer to explicitly pass initial masterVolume/masterMute as",
+   "    // parameter.",
+   "    //",
+   "    // If the HAL we are using has support for master volume or master mute,",
+   "    // then do not attenuate or mute during mixing (just leave the volume at 1.0",
+   "    // and the mute set to false)."
+  ]
+ },
+ "frameworks/av:services/audioflinger/Threads.cpp#sp<IAfTrack> PlaybackThread::createTrack_l(": {
+  "start": 2389,
+  "lines": [
+   "",
+   "// PlaybackThread::createTrack_l() must be called with AudioFlinger::mutex() held",
+   "sp<IAfTrack> PlaybackThread::createTrack_l(",
+   "        const sp<Client>& client,",
+   "        audio_stream_type_t streamType,",
+   "        const audio_attributes_t& attr,",
+   "        uint32_t *pSampleRate,",
+   "        audio_format_t format,",
+   "        audio_channel_mask_t channelMask,",
+   "        size_t *pFrameCount,",
+   "        size_t *pNotificationFrameCount,",
+   "        uint32_t notificationsPerBuffer,",
+   "        float speed,"
+  ]
+ },
+ "frameworks/av:services/audioflinger/Threads.cpp#ssize_t PlaybackThread::threadLoop_write()": {
+  "start": 3573,
+  "lines": [
+   "",
+   "// shared by MIXER and DIRECT, overridden by DUPLICATING",
+   "ssize_t PlaybackThread::threadLoop_write()",
+   "{",
+   "    LOG_HIST_TS();",
+   "    mInWrite = true;",
+   "    ssize_t bytesWritten;",
+   "    const size_t offset = mCurrentWriteLength - mBytesRemaining;",
+   "",
+   "    // If an NBAIO sink is present, use it to write the normal mixer's submix",
+   "    if (mNormalSink != 0) {",
+   "",
+   "        const size_t count = mBytesRemaining / mFrameSize;",
+   "",
+   "        ATRACE_BEGIN(\"write\");",
+   "        // update the setpoint when AudioFlinger::mScreenState changes",
+   "        const uint32_t screenState = mAfThreadCallback->getScreenState();"
+  ]
+ },
+ "frameworks/av:services/audioflinger/Threads.cpp#static const nsecs_t kDefaultStandbyTimeInNsecs = seconds(3);": {
+  "start": 258,
+  "lines": [
+   "static const size_t kRecordThreadReadOnlyHeapSize = 0xD000;",
+   "",
+   "static const nsecs_t kDefaultStandbyTimeInNsecs = seconds(3);",
+   "",
+   "static nsecs_t getStandbyTimeInNanos() {",
+   "    static nsecs_t standbyTimeInNanos = []() {",
+   "        const int ms = property_get_int32(\"ro.audio.flinger_standbytime_ms\",",
+   "                    kDefaultStandbyTimeInNsecs / NANOS_PER_MILLISECOND);",
+   "        ALOGI(\"%s: Using %d ms as standby time\", __func__, ms);",
+   "        return milliseconds(ms);",
+   "    }();"
+  ]
+ },
+ "frameworks/av:services/audioflinger/Threads.cpp#status = AudioSystem::startOutput(track->portId());": {
+  "start": 2899,
+  "lines": [
+   "status_t PlaybackThread::addTrack_l(const sp<IAfTrack>& track)",
+   "{",
+   "    status_t status = ALREADY_EXISTS;",
+   "",
+   "    if (mActiveTracks.indexOf(track) < 0) {",
+   "        // the track is newly added, make sure it fills up all its",
+   "        // buffers before playing. This is to ensure the client will",
+   "        // effectively get the latency it requested.",
+   "        if (track->isExternalTrack()) {",
+   "            IAfTrackBase::track_state state = track->state();",
+   "            // Because the track is not on the ActiveTracks,",
+   "            // at this point, only the TrackHandle will be adding the track.",
+   "            mutex().unlock();",
+   "            status = AudioSystem::startOutput(track->portId());",
+   "            mutex().lock();",
+   "            // abort track was stopped/paused while we released the lock",
+   "            if (state != track->state()) {",
+   "                if (status == NO_ERROR) {"
+  ]
+ },
+ "frameworks/av:services/audioflinger/Threads.cpp#void MixerThread::threadLoop_mix()": {
+  "start": 5549,
+  "lines": [
+   "}",
+   "",
+   "void MixerThread::threadLoop_mix()",
+   "{",
+   "    // mix buffers...",
+   "    mAudioMixer->process();",
+   "    mCurrentWriteLength = mSinkBufferSize;",
+   "    // increase sleep time progressively when application underrun condition clears.",
+   "    // Only increase sleep time if the mixer is ready for two consecutive times to avoid",
+   "    // that a steady state of alternating ready/not ready conditions keeps the sleep time",
+   "    // such that we would underrun the audio HAL.",
+   "    if ((mSleepTimeUs == 0) && (sleepTimeShift > 0)) {",
+   "        sleepTimeShift--;"
+  ]
+ },
+ "frameworks/av:services/audioflinger/Tracks.cpp#Status TrackHandle::start(int32_t* _aidl_return)": {
+  "start": 521,
+  "lines": [
+   "}",
+   "",
+   "Status TrackHandle::start(int32_t* _aidl_return) {",
+   "    *_aidl_return = mTrack->start();",
+   "    return Status::ok();",
+   "}",
+   "",
+   "Status TrackHandle::stop() {",
+   "    mTrack->stop();",
+   "    return Status::ok();",
+   "}",
+   "",
+   "Status TrackHandle::flush() {"
+  ]
+ },
+ "frameworks/av:services/audioflinger/Tracks.cpp#class TrackHandle : public android::media::BnAudioTrack": {
+  "start": 455,
+  "lines": [
+   "#define LOG_TAG \"AF::TrackHandle\"",
+   "",
+   "class TrackHandle : public android::media::BnAudioTrack {",
+   "public:",
+   "    explicit TrackHandle(const sp<IAfTrack>& track);",
+   "    ~TrackHandle() override;",
+   "",
+   "    binder::Status getCblk(std::optional<media::SharedFileRegion>* _aidl_return) final;",
+   "    binder::Status start(int32_t* _aidl_return) final;",
+   "    binder::Status stop() final;",
+   "    binder::Status flush() final;",
+   "    binder::Status pause() final;",
+   "    binder::Status attachAuxEffect(int32_t effectId, int32_t* _aidl_return) final;"
+  ]
+ },
+ "frameworks/av:services/audioflinger/Tracks.cpp#status_t Track::start(AudioSystem::sync_event_t event __unused": {
+  "start": 1366,
+  "lines": [
+   "}",
+   "",
+   "status_t Track::start(AudioSystem::sync_event_t event __unused,",
+   "                                                    audio_session_t triggerSession __unused)",
+   "{",
+   "    if (ATRACE_ENABLED()) [[unlikely]] {",
+   "        ATRACE_INSTANT_FOR_TRACK(mTraceActionId.c_str(), audio_utils::trace::Object{}",
+   "                .set(AUDIO_TRACE_OBJECT_KEY_EVENT, AUDIO_TRACE_EVENT_START)",
+   "                .toTrace().c_str());",
+   "    }",
+   "    status_t status = NO_ERROR;",
+   "    ALOGV(\"%s(%d): calling pid %d session %d\",",
+   "            __func__, mId, IPCThreadState::self()->getCallingPid(), mSessionId);"
+  ]
+ },
+ "frameworks/av:services/audioflinger/fastpath/FastMixer.cpp#const ssize_t framesWritten = mOutputSink->write(buffer, frameCount);": {
+  "start": 472,
+  "lines": [
+   "        mTee.write(buffer, frameCount);",
+   "#endif",
+   "        // FIXME write() is non-blocking and lock-free for a properly implemented NBAIO sink,",
+   "        //       but this code should be modified to handle both non-blocking and blocking sinks",
+   "        dumpState->mWriteSequence++;",
+   "        ATRACE_BEGIN(\"write\");",
+   "        const ssize_t framesWritten = mOutputSink->write(buffer, frameCount);",
+   "        ATRACE_END();",
+   "        dumpState->mWriteSequence++;",
+   "        if (framesWritten >= 0) {",
+   "            ALOG_ASSERT((size_t) framesWritten <= frameCount);",
+   "            mTotalNativeFramesWritten += framesWritten;",
+   "            dumpState->mFramesWritten = mTotalNativeFramesWritten;",
+   "            //if ((size_t) framesWritten == frameCount) {",
+   "            //    didFullWrite = true;",
+   "            //}",
+   "        } else {"
+  ]
+ },
+ "frameworks/av:services/audioflinger/fastpath/FastMixer.cpp#void FastMixer::onWork()": {
+  "start": 326,
+  "lines": [
+   "}",
+   "",
+   "void FastMixer::onWork()",
+   "{",
+   "    // TODO: pass an ID parameter to indicate which time series we want to write to in NBLog.cpp",
+   "    // Or: pass both of these into a single call with a boolean",
+   "    const FastMixerState * const current = (const FastMixerState *) mCurrent;",
+   "    FastMixerDumpState * const dumpState = (FastMixerDumpState *) mDumpState;",
+   "",
+   "    if (mIsWarm) {",
+   "        // Logging timestamps for FastMixer is currently disabled to make memory room for logging",
+   "        // other statistics in FastMixer.",
+   "        // To re-enable, delete the #ifdef FASTMIXER_LOG_HIST_TS lines (and the #endif lines)."
+  ]
+ },
+ "frameworks/av:services/audiopolicy/managerdefault/AudioPolicyManager.cpp#sp<SwAudioOutputDescriptor> AudioPolicyManager::openOutputWithProfileAndDevice(": {
+  "start": 9120,
+  "lines": [
+   "}",
+   "",
+   "sp<SwAudioOutputDescriptor> AudioPolicyManager::openOutputWithProfileAndDevice(",
+   "        const sp<IOProfile>& profile, const DeviceVector& devices,",
+   "        const audio_config_base_t *mixerConfig, const audio_config_t *halConfig,",
+   "        audio_output_flags_t flags)",
+   "{",
+   "    for (const auto& device : devices) {",
+   "        // TODO: This should be checking if the profile supports the device combo.",
+   "        if (!profile->supportsDevice(device)) {",
+   "            ALOGE(\"%s profile(%s) doesn't support device %#x\", __func__, profile->getName().c_str(),",
+   "                  device->type());",
+   "            return nullptr;"
+  ]
+ },
+ "frameworks/av:services/audiopolicy/managerdefault/AudioPolicyManager.cpp#status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t": {
+  "start": 1512,
+  "lines": [
+   "}",
+   "",
+   "status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,",
+   "                                              audio_io_handle_t *output,",
+   "                                              audio_session_t session,",
+   "                                              audio_stream_type_t *stream,",
+   "                                              const AttributionSourceState& attributionSource,",
+   "                                              audio_config_t *config,",
+   "                                              audio_output_flags_t *flags,",
+   "                                              DeviceIdVector *selectedDeviceIds,",
+   "                                              audio_port_handle_t *portId,",
+   "                                              std::vector<audio_io_handle_t> *secondaryOutputs,",
+   "                                              output_type_t *outputType,"
+  ]
+ },
+ "frameworks/av:services/audiopolicy/managerdefault/AudioPolicyManager.cpp#status_t AudioPolicyManager::getOutputForAttrInt(": {
+  "start": 1256,
+  "lines": [
+   "}",
+   "",
+   "status_t AudioPolicyManager::getOutputForAttrInt(",
+   "        audio_attributes_t *resultAttr,",
+   "        audio_io_handle_t *output,",
+   "        audio_session_t session,",
+   "        const audio_attributes_t *attr,",
+   "        audio_stream_type_t *stream,",
+   "        uid_t uid,",
+   "        audio_config_t *config,",
+   "        audio_output_flags_t *flags,",
+   "        DeviceIdVector *selectedDeviceIds,",
+   "        bool *isRequestedDeviceForExclusiveUse,"
+  ]
+ },
+ "frameworks/av:services/audiopolicy/service/AudioPolicyInterfaceImpl.cpp#Status AudioPolicyService::getOutputForAttr(": {
+  "start": 400,
+  "lines": [
+   "}",
+   "",
+   "Status AudioPolicyService::getOutputForAttr(const media::audio::common::AudioAttributes& attrAidl,",
+   "                                            int32_t sessionAidl,",
+   "                                            const AttributionSourceState& attributionSource,",
+   "                                            const AudioConfig& configAidl,",
+   "                                            int32_t flagsAidl,",
+   "                                            const std::vector<int32_t>& selectedDeviceIdsAidl,",
+   "                                            media::GetOutputForAttrResponse* _aidl_return)",
+   "{",
+   "    audio_attributes_t attr = VALUE_OR_RETURN_BINDER_STATUS(",
+   "            aidl2legacy_AudioAttributes_audio_attributes_t(attrAidl));",
+   "    audio_session_t session = VALUE_OR_RETURN_BINDER_STATUS("
+  ]
+ },
+ "frameworks/base:core/jni/android_media_AudioTrack.cpp#android_media_AudioTrack_start(JNIEnv *env, jobject thiz)": {
+  "start": 519,
+  "lines": [
+   "// ----------------------------------------------------------------------------",
+   "static void",
+   "android_media_AudioTrack_start(JNIEnv *env, jobject thiz)",
+   "{",
+   "    sp<AudioTrack> lpTrack = getAudioTrack(env, thiz);",
+   "    if (lpTrack == NULL) {",
+   "        jniThrowException(env, \"java/lang/IllegalStateException\",",
+   "            \"Unable to retrieve AudioTrack pointer for start()\");",
+   "        return;",
+   "    }",
+   "",
+   "    lpTrack->start();",
+   "}"
+  ]
+ },
+ "frameworks/base:core/jni/android_media_AudioTrack.cpp#static jint android_media_AudioTrack_setup(": {
+  "start": 241,
+  "lines": [
+   "",
+   "// ----------------------------------------------------------------------------",
+   "static jint android_media_AudioTrack_setup(JNIEnv *env, jobject thiz, jobject weak_this,",
+   "                                           jobject jaa, jintArray jSampleRate,",
+   "                                           jint channelPositionMask, jint channelIndexMask,",
+   "                                           jint audioFormat, jint buffSizeInBytes, jint memoryMode,",
+   "                                           jintArray jSession, jobject jAttributionSource,",
+   "                                           jlong nativeAudioTrack, jboolean offload,",
+   "                                           jint encapsulationMode, jobject tunerConfiguration,",
+   "                                           jstring opPackageName) {",
+   "    ALOGV(\"sampleRates=%p, channel mask=%x, index mask=%x, audioFormat(Java)=%d, buffSize=%d,\"",
+   "          \" nativeAudioTrack=0x%\" PRIX64 \", offload=%d encapsulationMode=%d tuner=%p\",",
+   "          jSampleRate, channelPositionMask, channelIndexMask, audioFormat, buffSizeInBytes,"
+  ]
+ },
+ "frameworks/base:core/jni/android_media_AudioTrack.cpp#status = lpTrack->set(AUDIO_STREAM_DEFAULT": {
+  "start": 367,
+  "lines": [
+   "        case MODE_STREAM:",
+   "            status = lpTrack->set(AUDIO_STREAM_DEFAULT, // stream type, but more info conveyed",
+   "                                                        // in paa (last argument)",
+   "                                  sampleRateInHertz,",
+   "                                  format, // word length, PCM",
+   "                                  nativeChannelMask, offload ? 0 : frameCount,",
+   "                                  offload ? AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD",
+   "                                          : AUDIO_OUTPUT_FLAG_NONE,",
+   "                                  lpJniStorage,",
+   "                                  0,    // notificationFrames == 0 since not using EVENT_MORE_DATA",
+   "                                        // to feed the AudioTrack",
+   "                                  0,    // shared mem"
+  ]
+ },
+ "frameworks/base:media/java/android/media/AudioTrack.java#int initResult = native_setup(": {
+  "start": 878,
+  "lines": [
+   "        // native initialization",
+   "        try (ScopedParcelState attributionSourceState = attributionSource.asScopedParcelState()) {",
+   "            int initResult = native_setup(new WeakReference<AudioTrack>(this), mAttributes,",
+   "                    sampleRate, mChannelMask, mChannelIndexMask, mAudioFormat,",
+   "                    mNativeBufferSizeInBytes, mDataLoadMode, session,",
+   "                    attributionSourceState.getParcel(), 0 /*nativeTrackInJavaObj*/, offload,",
+   "                    encapsulationMode, tunerConfiguration, getCurrentOpPackageName());",
+   "            if (initResult != SUCCESS) {",
+   "                loge(\"Error code \" + initResult + \" when initializing AudioTrack.\");",
+   "                return; // with mState == STATE_UNINITIALIZED",
+   "            }",
+   "        }",
+   ""
+  ]
+ },
+ "frameworks/base:media/java/android/media/AudioTrack.java#public @NonNull AudioTrack build()": {
+  "start": 1379,
+  "lines": [
+   "         *     or if the device was not available.",
+   "         */",
+   "        public @NonNull AudioTrack build() throws UnsupportedOperationException {",
+   "            if (mAttributes == null) {",
+   "                mAttributes = new AudioAttributes.Builder()",
+   "                        .setUsage(AudioAttributes.USAGE_MEDIA)",
+   "                        .build();",
+   "            }",
+   "            switch (mPerformanceMode) {",
+   "            case PERFORMANCE_MODE_LOW_LATENCY:",
+   "                mAttributes = new AudioAttributes.Builder(mAttributes)"
+  ]
+ },
+ "frameworks/base:media/java/android/media/AudioTrack.java#public int write(@NonNull byte[] audioData, int offsetInBytes, int sizeInBytes)": {
+  "start": 3154,
+  "lines": [
+   "     * set to  {@link #WRITE_BLOCKING}.",
+   "     */",
+   "    public int write(@NonNull byte[] audioData, int offsetInBytes, int sizeInBytes) {",
+   "        return write(audioData, offsetInBytes, sizeInBytes, WRITE_BLOCKING);",
+   "    }",
+   "",
+   "    /**",
+   "     * Writes the audio data to the audio sink for playback (streaming mode),",
+   "     * or copies audio data for later playback (static buffer mode).",
+   "     * The format specified in the AudioTrack constructor should be",
+   "     * {@link AudioFormat#ENCODING_PCM_8BIT} to correspond to the data in the array.",
+   "     * The format can be {@link AudioFormat#ENCODING_PCM_16BIT}, but this is deprecated.",
+   "     * <p>"
+  ]
+ },
+ "frameworks/base:services/core/java/com/android/server/audio/MediaFocusControl.java#protected int requestAudioFocus(@NonNull AudioAttributes aa": {
+  "start": 1114,
+  "lines": [
+   "     * @return",
+   "     */",
+   "    protected int requestAudioFocus(@NonNull AudioAttributes aa, int focusChangeHint, IBinder cb,",
+   "            IAudioFocusDispatcher fd, @NonNull String clientId, @NonNull String callingPackageName,",
+   "            int flags, int sdk, boolean forceDuck, int testUid,",
+   "            boolean permissionOverridesCheck) {",
+   "        new MediaMetrics.Item(mMetricsId)",
+   "                .setUid(Binder.getCallingUid())",
+   "                .set(MediaMetrics.Property.CALLING_PACKAGE, callingPackageName)",
+   "                .set(MediaMetrics.Property.CLIENT_NAME, clientId)",
+   "                .set(MediaMetrics.Property.EVENT, \"requestAudioFocus\")",
+   "                .set(MediaMetrics.Property.FLAGS, flags)",
+   "                .set(MediaMetrics.Property.FOCUS_CHANGE_HINT,"
+  ]
+ },
+ "hardware/interfaces:audio/aidl/android/hardware/audio/core/IModule.aidl#OpenOutputStreamReturn openOutputStream(": {
+  "start": 474,
+  "lines": [
+   "    OpenOutputStreamReturn openOutputStream(in OpenOutputStreamArguments args);",
+   "",
+   "    /**"
+  ]
+ },
+ "hardware/interfaces:audio/aidl/android/hardware/audio/core/StreamDescriptor.aidl#parcelable Reply {": {
+  "start": 353,
+  "lines": [
+   "    parcelable Reply {",
+   "        /**",
+   "         * One of Binder STATUS_* statuses:",
+   "         *  - STATUS_OK: the command has completed successfully;",
+   "         *  - STATUS_BAD_VALUE: invalid value in the 'Command' structure;",
+   "         *  - STATUS_INVALID_OPERATION: the command is not applicable in the",
+   "         *                              current state of the stream, or to this",
+   "         *                              type of the stream;",
+   "         *  - STATUS_NOT_ENOUGH_DATA: a read or write error has",
+   "         *                            occurred for the 'audio.fmq' queue;",
+   "         */",
+   "        int status;",
+   "        /**",
+   "         * Used with the 'burst' command only.",
+   "         *",
+   "         * For output streams: the amount of bytes of data actually consumed",
+   "         *   by the HAL module.",
+   "         * For input streams: the amount of bytes actually provided by the HAL",
+   "         *   in the 'audio.fmq' queue.",
+   "         *",
+   "         * The returned value must not exceed the value passed as the",
+   "         * argument of the corresponding command, or be negative.",
+   "         */",
+   "        int fmqByteCount;",
+   "        /**"
+  ]
+ },
+ "hardware/interfaces:audio/aidl/default/Stream.cpp#bool StreamOutWorkerLogic::write(size_t clientSize": {
+  "start": 638,
+  "lines": [
+   "bool StreamOutWorkerLogic::write(size_t clientSize, StreamDescriptor::Reply* reply) {",
+   "    ATRACE_CALL();",
+   "    StreamContext::DataMQ* const dataMQ = mContext->getDataMQ();",
+   "    const size_t readByteCount = dataMQ->availableToRead();",
+   "    const size_t frameSize = mContext->getFrameSize();",
+   "    bool fatal = false;",
+   "    int32_t latency = mContext->getNominalLatencyMs();",
+   "    if (readByteCount > 0 ? dataMQ->read(&mDataBuffer[0], readByteCount) : true) {",
+   "        const bool isConnected = mIsConnected;",
+   "        LOG(VERBOSE) << __func__ << \": reading of \" << readByteCount << \" bytes from data MQ\"",
+   "                     << \" succeeded; connected? \" << isConnected;",
+   "        // Amount of data that the HAL module is going to actually use.",
+   "        size_t byteCount = std::min({clientSize, readByteCount, mDataBufferSize});",
+   "        if (byteCount >= frameSize && mContext->getForceTransientBurst()) {",
+   "            // In order to prevent the state machine from going to ACTIVE state,",
+   "            // simulate partial write.",
+   "            byteCount -= frameSize;",
+   "        }",
+   "        size_t actualFrameCount = 0;",
+   "        if (isConnected) {",
+   "            if (::android::status_t status = mDriver->transfer(",
+   "                        mDataBuffer.get(), byteCount / frameSize, &actualFrameCount, &latency);",
+   "                status != ::android::OK) {",
+   "                fatal = true;",
+   "                LOG(ERROR) << __func__ << \": write failed: \" << status;",
+   "            }",
+   "            auto streamDataProcessor = mContext->getStreamDataProcessor().lock();",
+   "            if (streamDataProcessor != nullptr) {"
+  ]
+ },
+ "hardware/interfaces:audio/aidl/default/Stream.cpp#const std::string StreamOutWorkerLogic::kThreadName = \"writer\";": {
+  "start": 382,
+  "lines": [
+   "const std::string StreamOutWorkerLogic::kThreadName = \"writer\";",
+   "",
+   "StreamOutWorkerLogic::Status StreamOutWorkerLogic::cycle() {",
+   "    if (mState == StreamDescriptor::State::DRAINING && mContext->getForceDrainToDraining() &&",
+   "        mOnDrainReadyStatus == OnDrainReadyStatus::UNSENT) {"
+  ]
+ },
+ "hardware/interfaces:audio/aidl/default/Stream.cpp#if (sched_setscheduler(workerTid, SCHED_FIFO": {
+  "start": 716,
+  "lines": [
+   "        // FAST workers should be run with a SCHED_FIFO scheduler, however the host process",
+   "        // might be lacking the capability to request it, thus a failure to set is not an error.",
+   "        pid_t workerTid = mWorker->getTid();",
+   "        if (workerTid > 0) {",
+   "            constexpr int32_t kRTPriorityMin = 1;  // SchedulingPolicyService.PRIORITY_MIN (Java).",
+   "            constexpr int32_t kRTPriorityMax = 3;  // SchedulingPolicyService.PRIORITY_MAX (Java).",
+   "            int priorityBoost = kRTPriorityMax;",
+   "            if (flags.getTag() == AudioIoFlags::Tag::output &&",
+   "                isBitPositionFlagSet(flags.template get<AudioIoFlags::Tag::output>(),",
+   "                                     AudioOutputFlags::SPATIALIZER)) {",
+   "                const int32_t sptPrio =",
+   "                        property_get_int32(\"audio.spatializer.priority\", kRTPriorityMin);",
+   "                if (sptPrio >= kRTPriorityMin && sptPrio <= kRTPriorityMax) {",
+   "                    priorityBoost = sptPrio;",
+   "                } else {",
+   "                    LOG(WARNING) << __func__ << \": invalid spatializer priority: \" << sptPrio;",
+   "                    return ndk::ScopedAStatus::ok();",
+   "                }",
+   "            }",
+   "            struct sched_param param = {",
+   "                    .sched_priority = priorityBoost,",
+   "            };",
+   "            if (sched_setscheduler(workerTid, SCHED_FIFO | SCHED_RESET_ON_FORK, &param) != 0) {",
+   "                PLOG(WARNING) << __func__ << \": failed to set FIFO scheduler and priority\";",
+   "            }"
+  ]
+ },
+ "hardware/interfaces:audio/aidl/default/alsa/StreamAlsa.cpp#::android::status_t StreamAlsa::standby()": {
+  "start": 66,
+  "lines": [
+   "::android::status_t StreamAlsa::standby() {",
+   "    mAlsaDeviceProxies.clear();",
+   "    return ::android::OK;",
+   "}",
+   "",
+   "::android::status_t StreamAlsa::start() {",
+   "    if (!mAlsaDeviceProxies.empty()) {",
+   "        // This is a resume after a pause.",
+   "        return ::android::OK;",
+   "    }",
+   "    decltype(mAlsaDeviceProxies) alsaDeviceProxies;",
+   "    for (const auto& device : getDeviceProfiles()) {",
+   "        if ((device.direction == PCM_OUT && mIsInput) ||"
+  ]
+ },
+ "hardware/interfaces:audio/aidl/default/alsa/StreamAlsa.cpp#::android::status_t StreamAlsa::transfer(": {
+  "start": 106,
+  "lines": [
+   "::android::status_t StreamAlsa::transfer(void* buffer, size_t frameCount, size_t* actualFrameCount,",
+   "                                         int32_t* latencyMs) {",
+   "    if (mAlsaDeviceProxies.empty()) {",
+   "        LOG(FATAL) << __func__ << \": no opened devices\";",
+   "        return ::android::NO_INIT;",
+   "    }",
+   "    const size_t bytesToTransfer = frameCount * mFrameSizeBytes;",
+   "    unsigned maxLatency = 0;",
+   "    if (mIsInput) {",
+   "        // For input case, only support single device.",
+   "        proxy_read_with_retries(mAlsaDeviceProxies[0].get(), buffer, bytesToTransfer,",
+   "                                mReadWriteRetries);",
+   "        maxLatency = proxy_get_latency(mAlsaDeviceProxies[0].get());",
+   "    } else {",
+   "        alsa::applyGain(buffer, mGain, bytesToTransfer, mConfig.value().format, mConfig->channels);",
+   "        for (auto& proxy : mAlsaDeviceProxies) {",
+   "            proxy_write_with_retries(proxy.get(), buffer, bytesToTransfer, mReadWriteRetries);",
+   "            maxLatency = std::max(maxLatency, proxy_get_latency(proxy.get()));",
+   "        }",
+   "    }",
+   "    *actualFrameCount = frameCount;"
+  ]
+ },
+ "system/media:alsa_utils/alsa_device_proxy.c#int proxy_write_with_retries(": {
+  "start": 318,
+  "lines": [
+   "int proxy_write_with_retries(",
+   "        alsa_device_proxy * proxy, const void *data, unsigned int count, int tries)",
+   "{",
+   "    while (true) {",
+   "        --tries;",
+   "        const int ret = pcm_write(proxy->pcm, data, count);",
+   "        if (ret == 0) {",
+   "            proxy->transferred += count / proxy->frame_size;",
+   "            return 0;",
+   "        } else if (tries > 0 && (ret == -EIO || ret == -EAGAIN)) {",
+   "            continue;",
+   "        }",
+   "        return ret;"
+  ]
+ }
+}

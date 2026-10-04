@@ -268,7 +268,7 @@ AAOS sidecar (still not Core HAL):
   hardware/interfaces/automotive/audiocontrol/aidl/
 ```
 
-Released snapshots live under `hardware/interfaces/audio/aidl/aidl_api/`. Development IDL is the `android/hardware/audio/core/` tree. Search `android-15` / `android-latest-release`, not a HIDL `7.1` folder.
+Released snapshots live under `hardware/interfaces/audio/aidl/aidl_api/`. Development IDL is the `android/hardware/audio/core/` tree. Read it at the tag `android-15.0.0_r36`, not in a HIDL `7.1` folder.
 
 ## Debugging
 

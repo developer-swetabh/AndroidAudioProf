@@ -1,6 +1,8 @@
 /** One layer catalog + six scenarios. Architecture draws this; Learn keeps the essays. */
 
-const CS = "https://cs.android.com/android/platform/superproject/+/android-latest-release:";
+import { aospPathLink } from "../lib/aosp.js";
+
+/** Source links are pinned to AOSP_TAG (android-15.0.0_r36) via src/lib/aosp.js. */
 
 export const LAYERS = [
   {
@@ -14,8 +16,8 @@ export const LAYERS = [
     engineer: "The app Binders to AudioFlinger for createTrack / IAudioTrack and writes PCM (or encoded frames) into shared memory. It does not call AudioPolicyManager itself. Focus and volume go to AudioService (and CarAudioService on AAOS).",
     architect: "Wrong usage is the most common ‘routing’ bug. play() ≠ acoustic energy. Routing happens because Flinger called getOutputForAttr during createTrack — before play().",
     files: [
-      { name: "AudioTrack.java", url: `${CS}frameworks/base/media/java/android/media/AudioTrack.java` },
-      { name: "AudioTrack.cpp", url: `${CS}frameworks/av/media/libaudioclient/AudioTrack.cpp` },
+      { name: "AudioTrack.java", url: aospPathLink("frameworks/base/media/java/android/media/AudioTrack.java") },
+      { name: "AudioTrack.cpp", url: aospPathLink("frameworks/av/media/libaudioclient/AudioTrack.cpp") },
     ],
     fails: ["play() returned, no Flinger track", "USAGE_MEDIA on a ringtone", "Offload expected, landed on MixerThread"],
     cmd: "adb logcat -s AudioTrack AAudio",
@@ -31,8 +33,8 @@ export const LAYERS = [
     engineer: "Flinger calls AudioSystem.getOutputForAttr → IAudioPolicyService. Mix-port patches are created via AudioPolicyClient, which asks AudioFlinger — Policy does not burst PCM to the HAL.",
     architect: "A live patch is not ‘possible devices.’ On AIDL, APM gets IModule/IConfig topology through AudioFlinger/libaudiohal at startup; it has no HAL binder of its own. Device AVAILABLE ≠ Flinger moved.",
     files: [
-      { name: "AudioPolicyService.cpp", url: `${CS}frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp` },
-      { name: "AudioPolicyManager.cpp", url: `${CS}frameworks/av/services/audiopolicy/managerdefault/AudioPolicyManager.cpp` },
+      { name: "AudioPolicyService.cpp", url: aospPathLink("frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp") },
+      { name: "AudioPolicyManager.cpp", url: aospPathLink("frameworks/av/services/audiopolicy/managerdefault/AudioPolicyManager.cpp") },
     ],
     fails: ["Wrong device / bus address", "Profile lie → HAL EINVAL", "AVAILABLE on a sink Flinger left"],
     cmd: "adb shell dumpsys media.audio_policy",
@@ -40,16 +42,20 @@ export const LAYERS = [
   {
     id: "svc",
     n: 2,
-    process: "system_server",
+    process: "system_server · com.android.car",
+    processes: [
+      { name: "AudioService", process: "system_server" },
+      { name: "CarAudioService", process: "com.android.car (CarService)", product: "aaos" },
+    ],
     name: "AudioService / Car",
     color: "#C084FC",
-    who: "system_server. AudioService always. CarAudioService only on AAOS. Never in the PCM path.",
+    who: "AudioService runs in system_server (always). CarAudioService runs in CarService, com.android.car (AAOS only). Neither is in the PCM path.",
     beginner: "The usher: focus, volume keys, devices. In a car, also the building manager (zones and buses).",
     engineer: "AudioService: focus, volume UI, setDevice. CarAudioService: dynamic mixes, per-zone focus, volume groups, car_audio_configuration.xml v4. It programs Policy; Flinger still mixes.",
     architect: "Two contexts on one bus ⇒ the DSP sees one PCM; hardware duck is impossible. Fade XML is not a bus mute. CarAudioService is not a hop on the sample path.",
     files: [
-      { name: "AudioService.java", url: `${CS}frameworks/base/services/core/java/com/android/server/audio/AudioService.java` },
-      { name: "CarAudioService.java", url: `${CS}packages/services/Car/service/src/com/android/car/audio/CarAudioService.java` },
+      { name: "AudioService.java", url: aospPathLink("frameworks/base/services/core/java/com/android/server/audio/AudioService.java") },
+      { name: "CarAudioService.java", url: aospPathLink("packages/services/Car/service/src/com/android/car/audio/CarAudioService.java") },
     ],
     fails: ["Focus ignored by a rude app", "Typo in bus address, silent fallback", "Shared BUS00_MEDIA, no HW duck"],
     cmd: "adb shell dumpsys audio ; adb shell dumpsys car_service --services CarAudioService",
@@ -65,8 +71,8 @@ export const LAYERS = [
     engineer: "PlaybackThread family: MixerThread (+ FastMixer helper), DirectOutputThread, OffloadThread, DuplicatingThread, Spatializer/BitPerfect/MMAP. Direct/Offload skip the mixer, not Flinger. Dump twice for motion.",
     architect: "STANDBY means the output is idle (stream open; the vendor may have released the PCM). Frozen frames with State=ACTIVE is not an XRUN. Work > period_ms ⇒ you will glitch.",
     files: [
-      { name: "AudioFlinger.cpp", url: `${CS}frameworks/av/services/audioflinger/AudioFlinger.cpp` },
-      { name: "Threads.cpp", url: `${CS}frameworks/av/services/audioflinger/Threads.cpp` },
+      { name: "AudioFlinger.cpp", url: aospPathLink("frameworks/av/services/audioflinger/AudioFlinger.cpp") },
+      { name: "Threads.cpp", url: aospPathLink("frameworks/av/services/audioflinger/Threads.cpp") },
     ],
     fails: ["STANDBY through a one-shot chime", "Still bursting to a dead A2DP thread", "XRUN / empty mix"],
     cmd: "adb shell dumpsys media.audio_flinger",
@@ -82,7 +88,7 @@ export const LAYERS = [
     engineer: "openOutputStream (when an output opens), setAudioPatch, Command.start/burst/standby on audio.fmq. HAL must drain the whole FMQ. Classify AIDL vs HIDL before naming methods.",
     architect: "libaudiohal hides IPC; bugs still live in the vendor service. libaudiohal reads IConfig and IModule ports for APM. Policy changes ports/patches through AudioFlinger; Flinger uses StreamDescriptor for I/O. Those are different HAL conversations.",
     files: [
-      { name: "IModule.aidl", url: `${CS}hardware/interfaces/audio/aidl/android/hardware/audio/core/IModule.aidl` },
+      { name: "IModule.aidl", url: aospPathLink("hardware/interfaces/audio/aidl/android/hardware/audio/core/IModule.aidl") },
     ],
     fails: ["burst xrunFrames climbing", "Stream ERROR / STANDBY", "open EINVAL — format/slot lie"],
     cmd: "adb shell lshal | grep audio",
@@ -98,7 +104,7 @@ export const LAYERS = [
     engineer: "TinyALSA pcm_open/write. FE PCM vs BE DAI. Period × count is the ring. RUNNING + zeros is not an XRUN.",
     architect: "hw_ptr stuck + PCM RUNNING ⇒ clocks/DAI/DMA, not Policy. Slot map ≠ car XML.",
     files: [
-      { name: "tinyalsa", url: `${CS}external/tinyalsa/` },
+      { name: "tinyalsa", url: aospPathLink("external/tinyalsa") },
     ],
     fails: ["open EINVAL / wrong card,device", "XRUN", "RUNNING, hw_ptr frozen"],
     cmd: "adb shell cat /proc/asound/pcm",
@@ -208,7 +214,7 @@ export const SCENARIOS = [
       "AAudio output: IAudioFlinger.createTrack → getOutputForAttr → PlaybackThread → HAL out → cabin",
       "AAudio input: IAudioFlinger.createRecord → AudioSystem.getInputForAttr → RecordThread",
       "Capture data runs opposite: mic ADC → DAI → capture PCM → HAL in → RecordThread → app",
-      "Focus/zone: AudioManager → AudioService / CarAudioService (system_server)",
+      "Focus/zone: AudioManager → AudioService (system_server) · CarAudioService (com.android.car)",
       "ECNR / AEC is DSP or projection — not a Flinger mix of play+record",
       "If createRecord fails/retries, playback can still dump ACTIVE",
     ],

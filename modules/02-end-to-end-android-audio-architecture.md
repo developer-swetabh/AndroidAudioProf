@@ -29,7 +29,7 @@ If the program director sends the show to the wrong transmitter, the mixing cons
 
 **Beginner:** The software that makes the speaker play.
 
-**Engineer:** A set of processes (`audioserver`, `system_server`, optionally `car_service`) plus a vendor HAL and kernel drivers.
+**Engineer:** A set of processes (`audioserver`, `system_server`, and on AAOS CarService, `com.android.car`) plus a vendor HAL and kernel drivers.
 
 **Expert:** A real-time mixing server (AudioFlinger) coupled to a policy engine, isolated from apps by Binder, isolated from hardware by HAL, with a hard latency budget on some threads (FastMixer).
 
@@ -109,7 +109,8 @@ The app does **not** Binder to AudioPolicy for `createTrack`. Flinger asks Polic
 ```mermaid
 graph TD
     App["App process<br/>AudioTrack / AAudio"]
-    App -->|"Binder IAudioService<br/>focus / volume"| SS["system_server<br/>AudioService<br/>+ CarAudioService on AAOS"]
+    App -->|"Binder IAudioService<br/>focus / volume"| SS["system_server<br/>AudioService"]
+    CS["CarService (com.android.car)<br/>CarAudioService · AAOS only"] -->|"registerAudioPolicy<br/>mixes / focus policy"| SS
     App -->|"Binder IAudioFlinger.createTrack<br/>(IAudioTrack = control only)<br/>PCM via shared-memory cblk ring"| AF["AudioFlinger (audioserver)<br/>PlaybackThread / mix"]
     SS -->|"device connection / volume / dynamic mixes<br/>(focus stays in AudioService)"| APS["AudioPolicyService (audioserver)<br/>ports / mixes / volume"]
     AF <-->|"getOutputForAttr / startOutput<br/>peers, not a stack"| APS
@@ -208,7 +209,7 @@ You must know which path a bug is on. A wrong `AudioAttributes.usage` is a contr
 | `system_server` | `AudioService`, device callbacks, settings, (often) focus for phone |
 | `audioserver` | AudioFlinger + AudioPolicyService (since the mediaserver split) |
 | `cameraserver` / `mediaserver` | May still share codecs / NuPlayer paths; not the PCM mixer |
-| `car_service` | AAOS only; CarAudioService |
+| CarService (`com.android.car`) | AAOS only; CarAudioService (dumpsys name `car_service`). A separate persistent process, not `system_server` |
 | vendor audio daemon | Qualcomm and others; **not AOSP-universal** |
 
 On modern Android, audio server isolation exists so a mixer crash does not kill the whole media process. Exact process split changed around Android 7 (`audioserver` split from `mediaserver`). Do not assume pre-7 process names.
@@ -356,7 +357,7 @@ If they disagree, you have a **split-brain** bug (policy vs flinger), which is r
 
 ```bash
 # Process layout
-adb shell ps -A | grep -E 'audioserver|mediaserver|car_service|system_server'
+adb shell ps -A | grep -E 'audioserver|mediaserver|com.android.car|system_server'
 
 # Service presence
 adb shell service list | grep -i audio

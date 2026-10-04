@@ -231,7 +231,7 @@ export const POLICY_STEPS = [
     id: "bootmix",
     short: "boot mixes",
     title: "Car XML installs mixes once",
-    who: "car_service → AudioService",
+    who: "CarAudioService (com.android.car) → AudioService (system_server)",
     where: "registerAudioPolicy / AudioMix",
     line: "play() matches a mix that already exists. XML is not re-parsed on play(). CarAudioService is not on the PCM path.",
     dump: "dumpsys media.audio_policy → dynamic mixes. dumpsys car_service --services CarAudioService.",

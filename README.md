@@ -184,7 +184,7 @@ These are the primary public sources used while writing the modules:
 - [Multi-zone audio routing](https://source.android.com/docs/automotive/audio/audio-multizone-routing)
 - [Configurable audio policy engine](https://source.android.com/docs/automotive/audio/configurable-audio-policy-engine)
 
-AOSP paths move. When in doubt, search `android-latest-release` on [cs.android.com](https://cs.android.com).
+AOSP paths move between releases. The course is pinned to the tag `android-15.0.0_r36`: check paths and line numbers there ([frameworks/av at that tag](https://android.googlesource.com/platform/frameworks/av/+/refs/tags/android-15.0.0_r36/)). cs.android.com defaults to a newer branch, so select an Android 15 tag before comparing line numbers.
 
 ---
 

@@ -1,0 +1,32 @@
+{
+  "$id": "quiz.schema.json",
+  "title": "Learning check items (single choice, reveal after attempt)",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["id", "modules", "stem", "choices", "explain"],
+    "properties": {
+      "id": { "type": "string", "pattern": "^q-[a-z0-9-]+$" },
+      "label": { "type": "string" },
+      "modules": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+      "stem": { "type": "string" },
+      "choices": {
+        "type": "array", "minItems": 3, "maxItems": 5,
+        "items": {
+          "type": "object", "additionalProperties": false, "required": ["id", "text"],
+          "properties": {
+            "id": { "type": "string", "pattern": "^[a-e]$" },
+            "text": { "type": "string" },
+            "correct": { "const": true },
+            "feedback": { "type": "string" }
+          }
+        }
+      },
+      "explain": { "type": "string" },
+      "sources": { "type": "array", "items": { "$ref": "source.schema.json" } },
+      "reread": { "type": "string", "pattern": "^[0-9]{2}[a-z]?#[a-z0-9-]+$" }
+    }
+  }
+}

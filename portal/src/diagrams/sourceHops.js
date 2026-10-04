@@ -1,6 +1,6 @@
-/** Module 22: live AOSP walk. File names from cs.android.com — not vendor trees. */
+/** Module 22: live AOSP walk. Paths and links are pinned to AOSP_TAG (src/lib/aosp.js), not vendor trees. */
 
-const CS = "https://cs.android.com/android/platform/superproject/+/android-latest-release:";
+import { AOSP_TAG, aospPathLink } from "../lib/aosp.js";
 
 const WALKS = {
   play: {
@@ -9,10 +9,10 @@ const WALKS = {
       { name: "AudioTrack.play()", file: "frameworks/base/media/java/android/media/AudioTrack.java", note: "App process. PLAYING is not acoustic energy." },
       { name: "native_start / JNI", file: "frameworks/base/core/jni/android_media_AudioTrack.cpp", note: "Still the app process." },
       { name: "AudioTrack::start", file: "frameworks/av/media/libaudioclient/AudioTrack.cpp", note: "IAudioTrack Binder to audioserver." },
-      { name: "IAudioFlinger.createTrack", file: "frameworks/av/services/audioflinger/AudioFlinger.cpp", note: "Construction already routed. App does not Binder to Policy." },
-      { name: "getOutputForAttr", file: "frameworks/av/services/audiopolicy/service/AudioPolicyService.cpp", note: "Flinger asks Policy. Peer, not a stack." },
+      { name: "IAudioFlinger.createTrack", file: "frameworks/av/services/audioflinger/AudioFlinger.cpp", note: "Already happened at construction, before play(): the track was routed then. App does not Binder to Policy." },
+      { name: "getOutputForAttr", file: "frameworks/av/services/audiopolicy/service/AudioPolicyInterfaceImpl.cpp", note: "Also at construction: Flinger asks Policy, in-process. Peer, not a stack." },
       { name: "PlaybackThread / Track::start", file: "frameworks/av/services/audioflinger/Threads.cpp", note: "If STANDBY, the next write sends Command.start/burst on the already open HAL stream." },
-      { name: "IModule.openOutputStream", file: "hardware/interfaces/audio/aidl/android/hardware/audio/core/IModule.aidl", note: "AIDL. HIDL IStreamOut.write() is history." },
+      { name: "IModule.openOutputStream", file: "hardware/interfaces/audio/aidl/android/hardware/audio/core/IModule.aidl", note: "Ran once when the output was opened (boot / device attach), not on play(). AIDL; HIDL IStreamOut.write() is history." },
       { name: "Command.burst", file: "hardware/interfaces/audio/aidl/android/hardware/audio/core/StreamDescriptor.aidl", note: "Write audio.fmq, then burst. HAL must empty the FMQ." },
     ],
   },
@@ -77,7 +77,7 @@ export function mountSourceHops(host) {
       .join("");
     const s = w.steps[idx];
     sheet.innerHTML = `<p><strong>${s.name}</strong></p>
-      <p class="muted"><a href="${CS}${s.file}" target="_blank" rel="noreferrer">${s.file}</a></p>
+      <p class="muted"><a href="${aospPathLink(s.file)}" target="_blank" rel="noreferrer">${s.file}</a> <span class="small">(${AOSP_TAG})</span></p>
       <p>${s.note}</p>`;
     host._onCaption?.({ who: s.name, fail: s.note });
   };

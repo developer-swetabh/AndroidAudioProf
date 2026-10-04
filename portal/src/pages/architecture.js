@@ -1,4 +1,5 @@
 import { $, copy, esc } from "../lib/dom.js";
+import { AOSP_TAG } from "../lib/aosp.js";
 import { setMain } from "../shell.js";
 import { SCENARIOS, getLayer, getScenario } from "../content/architecture.js";
 import { mountPipeline } from "../diagrams/pipeline.js";
@@ -118,6 +119,7 @@ function renderDrawer(el, sc, layerId) {
     <p class="draw-label">${esc(label)}</p>
     ${err ? `<p class="invent">${esc(err)}</p>` : ""}
     <p><strong>WHO</strong> — ${esc(L.who)}</p>
+    ${L.processes ? `<ul class="proc-list">${L.processes.map((p) => `<li><strong>${esc(p.name)}</strong>: <code>${esc(p.process)}</code>${p.product === "aaos" ? " (AAOS only)" : ""}</li>`).join("")}</ul>` : ""}
     <div class="tabs">
       <button type="button" class="tab active" data-lvl="b">Beginner</button>
       <button type="button" class="tab" data-lvl="e">Engineer</button>
@@ -132,6 +134,7 @@ function renderDrawer(el, sc, layerId) {
         ? L.files.map((f) => `<li><a href="${f.url}" target="_blank" rel="noopener">${esc(f.name)}</a></li>`).join("")
         : "<li>Vendor / board specific</li>"
     }</ul>
+    ${L.files.length ? `<p class="muted small">Pinned to AOSP <code>${AOSP_TAG}</code>.</p>` : ""}
     ${L.vendor ? `<div class="invent">Do not invent PAL module IDs, ACDB topology names, or PCM device numbers. Ask your BSP owner.</div>` : ""}
     <p><strong>FAILURE MODES</strong></p>
     <ul class="fail-list">${L.fails.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
