@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "check:paths": "node scripts/check-aaos-paths.mjs",
+    "prebuild": "node scripts/check-aaos-paths.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },

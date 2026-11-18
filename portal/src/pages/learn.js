@@ -30,9 +30,8 @@ export async function pageLearn(id) {
       <aside class="mod-tree" id="modTree"></aside>
       <section class="learn-view">
         <div class="module-header">
-          <span class="badge">Module ${mod.id}</span>
-          <span class="layer-badge">${mod.mins} min · ${mod.trackTitle}</span>
-          <h1>${mod.title}</h1>
+          <h1><span class="mod-id">${mod.id}</span> ${mod.title}</h1>
+          <p class="module-meta">${mod.mins} min · ${mod.trackTitle}</p>
         </div>
         ${
           hasFlow
@@ -49,9 +48,9 @@ export async function pageLearn(id) {
         <nav class="learn-toc" id="learnToc" aria-label="In this module"></nav>
         <article class="md-body" id="md">Loading curriculum…</article>
         <div class="module-nav">
-          ${prev ? `<a class="btn-ghost" href="#/learn/${prev.id}">← ${prev.title}</a>` : "<span></span>"}
-          <button class="btn" id="markDone" type="button">${done.has(id) ? "Completed ✓" : "Mark complete"}</button>
-          ${next ? `<a class="btn-ghost" href="#/learn/${next.id}">${next.title} →</a>` : "<span></span>"}
+          ${prev ? `<a class="btn-ghost" href="#/learn/${prev.id}">${prev.title}</a>` : "<span></span>"}
+          <button class="btn" id="markDone" type="button">${done.has(id) ? "Completed" : "Mark complete"}</button>
+          ${next ? `<a class="btn-ghost" href="#/learn/${next.id}">${next.title}</a>` : "<span></span>"}
         </div>
       </section>
     </div>`);
@@ -116,7 +115,6 @@ function renderIndex(notice = "") {
     <div class="wrap learn-index">
       <div class="learn-index-head">
         <div>
-          <div class="badge">Curriculum</div>
           <h1>Learn</h1>
           <p class="lede">Markdown is still the textbook. Every module opens with a live flow bound to Architecture or Fundamentals — no second invented call path.</p>
         </div>

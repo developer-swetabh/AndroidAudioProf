@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-18T12:00:00.000Z",
+  "title": "Design System: Audio Architect",
+  "extensions": {
+    "colorMeta": {
+      "oxide": {
+        "role": "primary",
+        "displayName": "Oxide",
+        "canonical": "#e25b1a",
+        "tonalRamp": ["#3a1408", "#6b2810", "#9a3c14", "#c44e18", "#e25b1a", "#ea7a40", "#f2a078", "#f8d0bc"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#1a120c",
+        "tonalRamp": ["#1a120c", "#2c2118", "#433328", "#5c4a3a", "#8a7260", "#cbbba8", "#e4d8c8", "#f6f1e8"]
+      },
+      "night-leaf": {
+        "role": "neutral",
+        "displayName": "Night leaf",
+        "canonical": "#16130f",
+        "tonalRamp": ["#100e0c", "#16130f", "#1c1814", "#221e19", "#3a322a", "#5c4e42", "#8a7668", "#cbbba8"]
+      },
+      "day-paper": {
+        "role": "neutral",
+        "displayName": "Day paper",
+        "canonical": "#f3eee6",
+        "tonalRamp": ["#2c2118", "#5c4a3a", "#8a7260", "#cbbba8", "#e4d8c8", "#f3eee6", "#fffaf3", "#fffdf8"]
+      },
+      "pcm-night": {
+        "role": "secondary",
+        "displayName": "PCM",
+        "canonical": "#7dcec8",
+        "tonalRamp": ["#0c2e2c", "#0e6b64", "#1a8f86", "#3aada3", "#7dcec8", "#a5ded9", "#c9ece8", "#e7f7f5"]
+      },
+      "control-night": {
+        "role": "secondary",
+        "displayName": "Control",
+        "canonical": "#8f6428",
+        "tonalRamp": ["#3a2808", "#6b4510", "#8f6428", "#a67c42", "#c4a06a", "#e2b15a", "#f3dcb4", "#faf0dc"]
+      },
+      "steel-night": {
+        "role": "tertiary",
+        "displayName": "Steel",
+        "canonical": "#9eb8cc",
+        "tonalRamp": ["#1c2832", "#3d5568", "#5c7388", "#7a92a8", "#9eb8cc", "#c5d4e0", "#dce6ee", "#f2f6f8"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Manual title", "purpose": "Home title and other reading-leaf headlines." },
+      "reading": { "displayName": "Lesson prose", "purpose": "Markdown body, about 72ch." },
+      "title": { "displayName": "Chrome", "purpose": "Navigation and buttons." },
+      "label": { "displayName": "Measure", "purpose": "Ids, paths, counts, and stage order only." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "press", "value": "translateY(1px)", "purpose": "Button press only. No entrance, no hover lift." }
+    ],
+    "breakpoints": [
+      { "name": "play-sheet", "value": "800px" },
+      { "name": "nav-drawer", "value": "980px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Solid ink-or-cream action. Night leaf uses cream on night; day uses ink on cream.",
+      "html": "<button class=\"ds-btn-primary\">Start learning</button>",
+      "css": ".ds-btn-primary { background: #f6f1e8; color: #16130f; border: 1px solid #f6f1e8; border-radius: 2px; padding: 8px 14px; font-family: 'Schibsted Grotesk', system-ui, sans-serif; font-size: 13px; font-weight: 600; } .ds-btn-primary:hover { background: color-mix(in srgb, #f6f1e8 86%, #16130f); } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 2px solid #f6f1e8; outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary action. Border only.",
+      "html": "<button class=\"ds-btn-ghost\">Open a dump</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: #f6f1e8; border: 1px solid color-mix(in srgb, #f6f1e8 40%, transparent); border-radius: 2px; padding: 8px 14px; font-family: 'Schibsted Grotesk', system-ui, sans-serif; font-size: 13px; font-weight: 600; } .ds-btn-ghost:hover { background: color-mix(in srgb, #f6f1e8 8%, transparent); } .ds-btn-ghost:focus-visible { outline: 2px solid #f6f1e8; outline-offset: 2px; }"
+    },
+    {
+      "name": "Board navigation",
+      "kind": "nav",
+      "refersTo": "nav-board",
+      "description": "Oxide bar. Active item is a punched disc, not an underline.",
+      "html": "<nav class=\"ds-nav\"><span class=\"ds-mark\"></span><a class=\"is-active\" href=\"#\">Home</a><a href=\"#\">Learn</a></nav>",
+      "css": ".ds-nav { display: flex; align-items: center; gap: 8px; background: #e25b1a; color: #1a120c; padding: 8px 12px; font-family: 'Schibsted Grotesk', system-ui, sans-serif; font-weight: 600; } .ds-nav a { color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 7px; padding: 8px 10px; } .ds-mark, .ds-nav a.is-active::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #1a120c; display: inline-block; } .ds-mark { width: 12px; height: 12px; } .ds-nav a:focus-visible { outline: 2px solid #1a120c; outline-offset: 2px; }"
+    },
+    {
+      "name": "Playback stage",
+      "kind": "custom",
+      "refersTo": "button-ghost",
+      "description": "Format is a full border plus words. Boundary is 3px on every side. Selected adds a punch.",
+      "html": "<button class=\"ds-stage is-boundary\" type=\"button\"><span class=\"ds-punch\"></span><strong>Playback service</strong><span>control · Selected</span></button>",
+      "css": ".ds-stage { position: relative; display: block; width: 100%; text-align: left; background: #221e19; color: #f6f1e8; border: 3px dashed #8f6428; border-radius: 2px; padding: 8px 28px 8px 10px; font-family: 'Schibsted Grotesk', system-ui, sans-serif; } .ds-stage span { display: block; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11px; color: #cbbba8; } .ds-punch { position: absolute; top: 12px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: #f6f1e8; } .ds-stage:focus-visible { outline: 2px solid #f6f1e8; outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Open manual",
+    "overview": "Audio Architect is a reference manual lying open on a coloured divider board. The board is one saturated oxide field and carries the banner and the navigation. The reading leaf is warm paper by day and warm ink by night, because engineers use this beside source and dumps after dark and also print-read a lesson in daylight. The page shows the audio path doing its job. It does not pitch.",
+    "keyCharacteristics": [
+      "Oxide board for banner and navigation in both themes, with ink type on that board.",
+      "Serif for the manual title and lesson prose. Grotesk for chrome. Mono only for code, paths, counts, and stage order.",
+      "Two-pixel corners. The only circle is the punch.",
+      "Sample colour stays meaningful. Cyan is PCM. It is not the brand."
+    ],
+    "rules": [
+      { "name": "The Data Colour Rule", "body": "Cyan, amber, steel, green, and red name a format or a state. Oxide never substitutes for them. A link on the leaf is ink or cream with an oxide underline, not a cyan link.", "section": "colors" },
+      { "name": "The Reading Measure Rule", "body": "Lesson prose stays inside roughly 65–75 characters. Chrome does not.", "section": "typography" },
+      { "name": "The Flat Leaf Rule", "body": "Do not lift a card on hover. A press may move one pixel. Nothing else moves.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep the oxide board and the punched disc as the only brand marks.",
+      "Do set lesson titles and lesson prose in Source Serif 4, and chrome in Schibsted Grotesk.",
+      "Do keep PCM cyan, the darker control dash, and steel as data colours, with a word beside each. Warning amber is for text, not the dash.",
+      "Do keep the playback boundary at a 3px border on every side, plus the word “boundary”."
+    ],
+    "donts": [
+      "Don't open a page with a slogan, a count-up, or a row of equal icon cards.",
+      "Don't put a kicker or eyebrow above a heading. A phase label above a non-home title is leftover, not the pattern.",
+      "Don't use glow, glass, gradient fills, or a cyan underline as chrome.",
+      "Don't use Inter, Outfit, or a system display face as the voice of the page.",
+      "Don't use emoji or unicode glyphs as the shell icons.",
+      "Don't let oxide replace a data colour, and don't thin the boundary border to satisfy a 1px side-stripe habit."
+    ]
+  }
+}

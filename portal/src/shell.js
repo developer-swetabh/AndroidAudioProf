@@ -28,10 +28,22 @@ adb logcat -b main,system,crash -v threadtime`;
 
 let mounted = false;
 
+const ICON = {
+  menu: `<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3 4.5h12M3 9h12M3 13.5h12" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`,
+  search: `<svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="7.5" cy="7.5" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.6 10.6L15 15" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`,
+  commands: `<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 5.5l4 3.5-4 3.5M9.5 13.5h5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`,
+  sun: `<svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9 1.8v2.1M9 14.1v2.1M1.8 9h2.1M14.1 9h2.1M3.7 3.7l1.5 1.5M12.8 12.8l1.5 1.5M3.7 14.3l1.5-1.5M12.8 5.2l1.5-1.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`,
+  moon: `<svg viewBox="0 0 18 18" aria-hidden="true"><path d="M12.2 2.4a6.2 6.2 0 1 0 3.2 10.2A5 5 0 0 1 12.2 2.4z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>`,
+};
+
 export function applyTheme() {
-  document.documentElement.dataset.theme = load().theme || "dark";
+  const theme = load().theme || "dark";
+  document.documentElement.dataset.theme = theme;
   const btn = $("#themeBtn");
-  if (btn) btn.textContent = (load().theme || "dark") === "light" ? "☾" : "☀";
+  if (!btn) return;
+  const light = theme === "light";
+  btn.innerHTML = light ? ICON.moon : ICON.sun;
+  btn.setAttribute("aria-label", light ? "Switch to night paper" : "Switch to day paper");
 }
 
 export function mountShell() {
@@ -50,12 +62,12 @@ export function mountShell() {
         <span class="brand-mark" aria-hidden="true"></span>
         <span class="brand-text">Audio Architect</span>
       </a>
-      <button class="icon-btn menu-btn" id="menuBtn" type="button" aria-label="Open menu" aria-expanded="false">☰</button>
+      <button class="icon-btn menu-btn" id="menuBtn" type="button" aria-label="Open menu" aria-expanded="false">${ICON.menu}</button>
       <nav class="nav-links" id="navLinks" aria-label="Primary"></nav>
       <div class="nav-actions">
-        <button class="icon-btn" id="searchBtn" type="button" aria-label="Search (Ctrl+K)">⌘K</button>
-        <button class="icon-btn" id="themeBtn" type="button" aria-label="Toggle theme">☀</button>
-        <button class="icon-btn" id="cmdBtn" type="button" aria-label="Quick commands">$_</button>
+        <button class="icon-btn" id="searchBtn" type="button" aria-label="Search (Ctrl+K)">${ICON.search}</button>
+        <button class="icon-btn" id="themeBtn" type="button" aria-label="Switch to day paper">${ICON.sun}</button>
+        <button class="icon-btn" id="cmdBtn" type="button" aria-label="Quick commands">${ICON.commands}</button>
       </div>
     </header>
     <main id="app-main" class="page" tabindex="-1"></main>
@@ -78,6 +90,7 @@ export function mountShell() {
   $("#menuBtn").onclick = () => {
     const open = $("#navLinks").classList.toggle("open");
     $("#menuBtn").setAttribute("aria-expanded", open ? "true" : "false");
+    $("#menuBtn").setAttribute("aria-label", open ? "Close menu" : "Open menu");
   };
   $("#navLinks").addEventListener("click", (e) => {
     if (e.target.closest("a")) $("#navLinks").classList.remove("open");
@@ -112,6 +125,7 @@ export function openPalette() {
     ...GATES.map((g) => ({ t: `Gate ${g.id}: ${g.title}`, h: `progression/${g.id}`, k: "gate" })),
     ...XML_FILES.map((x) => ({ t: `XML: ${x.file}`, h: `architecture/xml/${x.id}`, k: "xml" })),
     ...LIFE_SCENES.map((s) => ({ t: `Lifecycle: ${s.name}`, h: `architecture/life/${s.id}`, k: "life" })),
+    { t: "Playback: MP3 to speaker", h: "architecture/play", k: "play" },
     ...TERMS.map((t) => ({ t: `Term: ${t.name}`, h: `glossary/${t.id}`, k: "glossary" })),
   ];
   const el = document.createElement("div");

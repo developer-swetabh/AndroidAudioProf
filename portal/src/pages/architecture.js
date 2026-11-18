@@ -4,6 +4,7 @@ import { SCENARIOS, getLayer, getScenario } from "../content/architecture.js";
 import { mountPipeline } from "../diagrams/pipeline.js";
 import { pageConfigStudio } from "./configStudio.js";
 import { pageLifecycleStudio } from "./lifecycleStudio.js";
+import { pagePlaybackStudio } from "./playbackStudio.js";
 
 export function pageArchitecture(arg = "") {
   const first = (arg || "").split("/")[0];
@@ -15,6 +16,10 @@ export function pageArchitecture(arg = "") {
     pageLifecycleStudio((arg || "").split("/").slice(1).join("/"));
     return;
   }
+  if (first === "play" || first === "playback") {
+    pagePlaybackStudio((arg || "").split("/").slice(1).join("/"));
+    return;
+  }
   const start = getScenario(first);
   setMain(`
     <div class="arch-page">
@@ -22,6 +27,7 @@ export function pageArchitecture(arg = "") {
         <p class="learn-related" style="margin:0 0 10px">
           <a class="btn-ghost" href="#/architecture/xml">Config XML →</a>
           <a class="btn-ghost" href="#/architecture/life">Lifecycle →</a>
+          <a class="btn-ghost" href="#/architecture/play">File → speaker →</a>
         </p>
         <h2>Scenarios</h2>
         <div class="arch-scens">
@@ -154,13 +160,13 @@ function renderDrawer(el, sc, layerId) {
 
 function zoomLink(layerId) {
   if (layerId === "flinger") {
-    return `<p class="learn-related"><a class="btn" href="#/architecture/life/period">Zoom internals → period loop</a></p>`;
+    return `<p class="learn-related"><a class="btn" href="#/architecture/life/period">Zoom internals → period loop</a> <a class="btn-ghost" href="#/architecture/play">File → speaker →</a></p>`;
   }
   if (layerId === "policy") {
     return `<p class="learn-related"><a class="btn" href="#/architecture/life/policy">Zoom internals → Policy room</a></p>`;
   }
   if (layerId === "app") {
-    return `<p class="learn-related"><a class="btn-ghost" href="#/architecture/life/create">Zoom createTrack vs play() →</a></p>`;
+    return `<p class="learn-related"><a class="btn-ghost" href="#/architecture/life/create">Zoom createTrack vs play() →</a> <a class="btn-ghost" href="#/architecture/play">File → speaker →</a></p>`;
   }
   return "";
 }

@@ -1,0 +1,1216 @@
+{
+  "meta": {
+    "id": "aaos-mp3-to-speaker",
+    "title": "MP3 to speaker on AAOS",
+    "target": "Android 15 AAOS",
+    "branch": "android15-release",
+    "branchNote": "android15-automotiveos-release exists and is a different commit. This file does not include that diff.",
+    "player": "AOSP MediaPlayer / NuPlayer. AndroidX Media3 was not read.",
+    "readAt": "2026-10-18",
+    "commits": {
+      "platform/packages/services/Car": "eddd1b5e71510b8e4ab14f386203db2d936d856e",
+      "platform/frameworks/av": "1863cb0ea5a9e1340f11a435618ff863e017da29",
+      "platform/hardware/interfaces": "488942f82bd1bc9ad1cb65a02c71421dc3a6a3d6"
+    },
+    "drawing": {
+      "solidLine": "Sample bytes. Shared memory, mixer or offload copy, HAL fast message queue, then the kernel driver.",
+      "dashedLine": "Control. Binder or AIDL: create track, start, stop, focus, volume, duck, route.",
+      "heavyBorder": "Process or hardware boundary.",
+      "policy": "AudioPolicyService sits beside the data path. It picks the output. It does not carry MP3 or PCM bytes."
+    },
+    "tags": ["VERIFIED", "VERSION-DEPENDENT", "VENDOR-SPECIFIC", "UNKNOWN"],
+    "owners": ["Framework (AOSP)", "Vendor HAL", "Kernel", "DSP-Hardware"],
+    "bounds": ["app","calling process","mediaserver","media.extractor","audioserver","car service","HAL","AudioControl HAL","vendor.audio-hal-aidl","vendor HAL","kernel","DSP","outside Android"]
+  },
+  "corrections": [
+    {
+      "claim": "Audio samples travel on Binder.",
+      "correction": "They do not. The app and AudioFlinger share memory. AudioFlinger and an AIDL HAL use a fast message queue. Binder is used to create the track and to open the stream.",
+      "tag": "VERIFIED"
+    },
+    {
+      "claim": "One AudioFlinger mixer sits on every AAOS playback.",
+      "correction": "AudioFlinger mixes only tracks that share one output. AAOS usually maps different audio contexts to different bus devices, so those streams are different threads. Mixing buses together is outside Android.",
+      "tag": "VERIFIED"
+    },
+    {
+      "claim": "The kernel path is usually ALSA compress, not ALSA PCM.",
+      "correction": "The AOSP reference HAL on this branch writes with tinyalsa pcm_write. A compress API exists in the kernel, and tinycompress exists, but this reference HAL does not call it. A car that offloads would be a vendor HAL, which was not read.",
+      "tag": "VERIFIED"
+    },
+    {
+      "claim": "Compressed offload is the normal AAOS media path.",
+      "correction": "The AAOS docs describe bus devices and an external mixer. Offload runs only when the HAL profile advertises COMPRESS_OFFLOAD and AudioPolicyManager accepts the clip. No car policy XML was read, so how often real cars do this is unknown.",
+      "tag": "UNKNOWN"
+    }
+  ],
+  "control": [
+    {
+      "id": "c-zones",
+      "order": 1,
+      "name": "Audio zones",
+      "line": "control",
+      "short": "Each zone has its own focus, routing, and ducking.",
+      "technical": "CarAudioService loads zones from car_audio_configuration.xml, or from the legacy volume-group file if that XML is missing. Zones are not a hop for sample bytes.",
+      "owner": "Framework (AOSP)",
+      "inputFormat": "XML zone config",
+      "outputFormat": "In-memory CarAudioZone list",
+      "process": "Car service process. The init rc was not opened.",
+      "bounds": ["car service"],
+      "thread": "CarAudioService setup, not a playback thread",
+      "buffers": "None for samples",
+      "latency": "Boot and config change only",
+      "versionNotes": "Docs describe Android 15 config version 4, including fade config on a zone. Multi-zone focus is independent per zone.",
+      "tag": "VERIFIED",
+      "sources": [
+        {
+          "kind": "aosp",
+          "label": "CarAudioService.loadAndInitCarAudioZonesLocked",
+          "repo": "platform/packages/services/Car",
+          "branch": "android15-release",
+          "path": "service/src/com/android/car/audio/CarAudioService.java",
+          "symbol": "loadAndInitCarAudioZonesLocked",
+          "url": "https://android.googlesource.com/platform/packages/services/Car/+/refs/heads/android15-release/service/src/com/android/car/audio/CarAudioService.java"
+        },
+        {
+          "kind": "doc",
+          "label": "AAOS audio overview",
+          "url": "https://source.android.com/docs/automotive/audio"
+        }
+      ]
+    },
+    {
+      "id": "c-contexts",
+      "order": 2,
+      "name": "Audio contexts",
+      "line": "control",
+      "short": "A usage such as media or navigation is mapped to a named car context.",
+      "technical": "CarAudioContext lists music, navigation, voice command, call ring, call, alarm, notification, system sound, emergency, safety, vehicle status, and announcement. Each context holds one or more AudioAttributes usages. The context picks the bus. It is not a sample format.",
+      "owner": "Framework (AOSP)",
+      "inputFormat": "AudioAttributes usage",
+      "outputFormat": "Car audio context id",
+      "process": "Car service process",
+      "bounds": ["car service"],
+      "thread": "Caller of CarAudioService, not a playback thread",
+      "buffers": "None",
+      "latency": "None on the sample path",
+      "versionNotes": "",
+      "tag": "VERIFIED",
+      "sources": [
+        {
+          "kind": "aosp",
+          "label": "CarAudioContext",
+          "repo": "platform/packages/services/Car",
+          "branch": "android15-release",
+          "path": "service/src/com/android/car/audio/CarAudioContext.java",
+          "symbol": "CarAudioContext",
+          "url": "https://android.googlesource.com/platform/packages/services/Car/+/refs/heads/android15-release/service/src/com/android/car/audio/CarAudioContext.java"
+        }
+      ]
+    },
+    {
+      "id": "c-bus-routing",
+      "order": 3,
+      "name": "Dynamic routing to bus devices",
+      "line": "control",
+      "short": "CarAudioService registers a mix that sends each context to a bus address.",
+      "technical": "When audioUseDynamicRouting is set, setupRoutingAudioPolicyLocked builds an AudioPolicy. CarAudioDynamicRouting adds one AudioMix per bus address, with ROUTE_FLAG_RENDER, using the device sample rate, encoding, and channel mask. AudioPolicyManager later honors that mix. Sample bytes still go app to AudioFlinger to HAL.",
+      "owner": "Framework (AOSP)",
+      "inputFormat": "Context-to-address map from car_audio_configuration.xml",
+      "outputFormat": "Registered AudioMix rules",
+      "process": "Car service process registers the policy. audioserver stores it.",
+      "bounds": ["car service","audioserver"],
+      "thread": "Setup, then policy lookup on createTrack",
+      "buffers": "None",
+      "latency": "None on the sample path",
+      "versionNotes": "If dynamic routing is off, this policy is not registered. The legacy helper requires AudioControl HIDL v1 and throws if a newer IAudioControl is present and the XML is missing.",
+      "tag": "VERIFIED",
+      "sources": [
+        {
+          "kind": "aosp",
+          "label": "CarAudioDynamicRouting.setupAudioDynamicRouting",
+          "repo": "platform/packages/services/Car",
+          "branch": "android15-release",
+          "path": "service/src/com/android/car/audio/CarAudioDynamicRouting.java",
+          "symbol": "setupAudioDynamicRouting",
+          "url": "https://android.googlesource.com/platform/packages/services/Car/+/refs/heads/android15-release/service/src/com/android/car/audio/CarAudioDynamicRouting.java"
+        },
+        {
+          "kind": "aosp",
+          "label": "CarAudioService.setupRoutingAudioPolicyLocked",
+          "repo": "platform/packages/services/Car",
+          "branch": "android15-release",
+          "path": "service/src/com/android/car/audio/CarAudioService.java",
+          "symbol": "setupRoutingAudioPolicyLocked",
+          "url": "https://android.googlesource.com/platform/packages/services/Car/+/refs/heads/android15-release/service/src/com/android/car/audio/CarAudioService.java"
+        },
+        {
+          "kind": "doc",
+          "label": "Car audio configuration",
+          "url": "https://source.android.com/docs/automotive/audio/audio-policy-configuration"
+        }
+      ]
+    },
+    {
+      "id": "c-output-choice",
+      "order": 4,
+      "name": "AudioPolicy chooses the output",
+      "line": "control",
+      "short": "Policy picks the playback thread and device. It is not in the data path.",
+      "technical": "AudioPolicyService and AudioFlinger are created in the same audioserver process. getOutputForAttr calls AudioPolicyManager::getOutputForDevices. COMPRESS_OFFLOAD forces the DIRECT flag. DEEP_BUFFER is stripped unless the stream is music. It is auto-selected only when audio.deep_buffer.media is true. The default in code is false. FAST is a request AudioFlinger may deny.",
+      "owner": "Framework (AOSP)",
+      "inputFormat": "Audio attributes, PCM or compressed config, flags",
+      "outputFormat": "audio_io_handle_t for one playback thread",
+      "process": "audioserver",
+      "bounds": ["audioserver"],
+      "thread": "Binder thread in audioserver, then the chosen PlaybackThread",
+      "buffers": "None",
+      "latency": "Lookup during createTrack, before play",
+      "versionNotes": "",
+      "tag": "VERIFIED",
+      "sources": [
+        {
+          "kind": "aosp",
+          "label": "main_audioserver creates AudioFlinger and AudioPolicyService together",
+          "repo": "platform/frameworks/av",
+          "branch": "android15-release",
+          "path": "media/audioserver/main_audioserver.cpp",
+          "symbol": "AudioPolicyService::make",
+          "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/audioserver/main_audioserver.cpp"
+        },
+        {
+          "kind": "aosp",
+          "label": "AudioPolicyService::getOutputForAttr",
+          "repo": "platform/frameworks/av",
+          "branch": "android15-release",
+          "path": "services/audiopolicy/service/AudioPolicyInterfaceImpl.cpp",
+          "symbol": "AudioPolicyService::getOutputForAttr",
+          "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audiopolicy/service/AudioPolicyInterfaceImpl.cpp"
+        },
+        {
+          "kind": "aosp",
+          "label": "AudioPolicyManager::getOutputForDevices",
+          "repo": "platform/frameworks/av",
+          "branch": "android15-release",
+          "path": "services/audiopolicy/managerdefault/AudioPolicyManager.cpp",
+          "symbol": "AudioPolicyManager::getOutputForDevices",
+          "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audiopolicy/managerdefault/AudioPolicyManager.cpp"
+        }
+      ]
+    },
+    {
+      "id": "c-volume",
+      "order": 5,
+      "name": "Volume groups",
+      "line": "control",
+      "short": "Devices in one group share one gain. The usual car path writes that gain below the mixer.",
+      "technical": "CarVolumeGroup documents two modes. With fixed volume, the group calls AudioManager.setAudioDeviceGain on the bus address. The comment says software volume stays fixed and the amplifier applies the gain. With useCoreAudioVolume, volume uses setVolumeIndexForAttributes. That gain may be hardware, if the port sets useForVolume, or software inside AudioFlinger.",
+      "owner": "Framework (AOSP)",
+      "ownerNote": "The gain is applied by the HAL or the amplifier. That apply step is vendor-specific.",
+      "inputFormat": "Volume index for a group",
+      "outputFormat": "Device gain in millibels, or a core volume index",
+      "process": "Car service process calls AudioManager. audioserver and the HAL apply it.",
+      "bounds": ["car service","audioserver","HAL"],
+      "thread": "Not a sample thread",
+      "buffers": "None",
+      "latency": "Gain change, not a buffer period",
+      "versionNotes": "Android 15 adds min and max activation volume. The flag in this tree is carAudioMinMaxActivationVolume. Docs: volume-management.",
+      "tag": "VERIFIED",
+      "sources": [
+        {
+          "kind": "aosp",
+          "label": "CarVolumeGroup class comment",
+          "repo": "platform/packages/services/Car",
+          "branch": "android15-release",
+          "path": "service/src/com/android/car/audio/CarVolumeGroup.java",
+          "symbol": "CarVolumeGroup",
+          "url": "https://android.googlesource.com/platform/packages/services/Car/+/refs/heads/android15-release/service/src/com/android/car/audio/CarVolumeGroup.java"
+        },
+        {
+          "kind": "aosp",
+          "label": "CarAudioDeviceInfo.setCurrentGain",
+          "repo": "platform/packages/services/Car",
+          "branch": "android15-release",
+          "path": "service/src/com/android/car/audio/CarAudioDeviceInfo.java",
+          "symbol": "setCurrentGain",
+          "url": "https://android.googlesource.com/platform/packages/services/Car/+/refs/heads/android15-release/service/src/com/android/car/audio/CarAudioDeviceInfo.java"
+        },
+        {
+          "kind": "doc",
+          "label": "Volume management",
+          "url": "https://source.android.com/docs/automotive/audio/volume-management"
+        }
+      ]
+    },
+    {
+      "id": "c-focus",
+      "order": 6,
+      "name": "Audio focus",
+      "line": "control",
+      "short": "Focus is decided per zone. Losing focus does not, by itself, stop the samples.",
+      "technical": "The public doc defines exclusive, reject, and concurrent interactions from the request context and the holder context. Concurrent playback is allowed for AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK when the holder does not pause or opt into duck events. Focus is not enforced unless the OEM turns on system fade. The code files are CarAudioFocus and FocusInteraction. The matrix was not re-read line by line in Java.",
+      "owner": "Framework (AOSP)",
+      "inputFormat": "AudioFocusRequest and attributes",
+      "outputFormat": "Grant, delay, or fail, plus a loss callback to the holder",
+      "process": "Car service process, using AudioManager",
+      "bounds": ["car service"],
+      "thread": "Not a sample thread",
+      "buffers": "None",
+      "latency": "None on the sample path until fade or duck is applied",
+      "versionNotes": "Delayable focus is Android 11. Navigation-during-call reject is Android 11. System fade is Android 15 and off by default.",
+      "tag": "VERIFIED",
+      "sources": [
+        {
+          "kind": "doc",
+          "label": "Audio focus",
+          "url": "https://source.android.com/docs/automotive/audio/audio-focus"
+        },
+        {
+          "kind": "aosp",
+          "label": "CarAudioFocus",
+          "repo": "platform/packages/services/Car",
+          "branch": "android15-release",
+          "path": "service/src/com/android/car/audio/CarAudioFocus.java",
+          "symbol": "CarAudioFocus",
+          "url": "https://android.googlesource.com/platform/packages/services/Car/+/refs/heads/android15-release/service/src/com/android/car/audio/CarAudioFocus.java"
+        },
+        {
+          "kind": "aosp",
+          "label": "FocusInteraction",
+          "repo": "platform/packages/services/Car",
+          "branch": "android15-release",
+          "path": "service/src/com/android/car/audio/FocusInteraction.java",
+          "symbol": "FocusInteraction",
+          "url": "https://android.googlesource.com/platform/packages/services/Car/+/refs/heads/android15-release/service/src/com/android/car/audio/FocusInteraction.java"
+        }
+      ]
+    },
+    {
+      "id": "c-duck",
+      "order": 7,
+      "name": "Ducking",
+      "line": "control",
+      "short": "The car service can tell the HAL which devices to duck. Android does not then scale those PCM samples.",
+      "technical": "If audioUseHalDuckingSignals is true and the HAL supports ducking, CarDucking.onFocusChange builds a DuckingInfo per zone and calls IAudioControl.onDevicesToDuckChange. The duck list comes from CarAudioContext.evaluateAudioAttributesToDuck, unless an OEM ducking service is installed. The AAOS overview says concurrent contexts should use different buses so the HAL can duck one stream. If they share a bus, Android mixes them and does not change the gains.",
+      "owner": "Framework (AOSP)",
+      "ownerNote": "Applying the duck is Vendor HAL or DSP-Hardware.",
+      "inputFormat": "Focus holders by zone",
+      "outputFormat": "DuckingInfo array to the AudioControl HAL",
+      "process": "Car service process to the AudioControl HAL process",
+      "bounds": ["car service","AudioControl HAL"],
+      "thread": "Focus callback, not a playback thread",
+      "buffers": "None",
+      "latency": "Vendor duck ramp. Not defined in AOSP.",
+      "versionNotes": "The flag defaults are documented on the config-flags page. This file does not copy those defaults from the resource XML.",
+      "tag": "VERIFIED",
+      "sources": [
+        {
+          "kind": "aosp",
+          "label": "CarDucking.onFocusChange",
+          "repo": "platform/packages/services/Car",
+          "branch": "android15-release",
+          "path": "service/src/com/android/car/audio/CarDucking.java",
+          "symbol": "onFocusChange",
+          "url": "https://android.googlesource.com/platform/packages/services/Car/+/refs/heads/android15-release/service/src/com/android/car/audio/CarDucking.java"
+        },
+        {
+          "kind": "aosp",
+          "label": "IAudioControl.onDevicesToDuckChange",
+          "repo": "platform/hardware/interfaces",
+          "branch": "android15-release",
+          "path": "automotive/audiocontrol/aidl/android/hardware/automotive/audiocontrol/IAudioControl.aidl",
+          "symbol": "onDevicesToDuckChange",
+          "url": "https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/android15-release/automotive/audiocontrol/aidl/android/hardware/automotive/audiocontrol/IAudioControl.aidl"
+        },
+        {
+          "kind": "doc",
+          "label": "AAOS audio overview, concurrent streams",
+          "url": "https://source.android.com/docs/automotive/audio"
+        }
+      ]
+    },
+    {
+      "id": "c-fade",
+      "order": 8,
+      "name": "System fade on focus loss",
+      "line": "control",
+      "short": "Optional Android 15 fade. A losing player is ramped down inside the framework.",
+      "technical": "audioUseFadeManagerConfiguration is off unless the OEM enables it. car_audio_fade_configuration.xml names fade durations. The framework builds a VolumeShaper. DirectOutputThread::processVolume_l reads that shaper and sends the result to the stream with setVolume, or through an effect chain if one is attached. This is a gain change, not a second sample path.",
+      "owner": "Framework (AOSP)",
+      "inputFormat": "Focus loss plus fade XML",
+      "outputFormat": "Volume ramp on the track",
+      "process": "Car service decides. audioserver applies the shaper.",
+      "bounds": ["car service","audioserver"],
+      "thread": "PlaybackThread that owns the track",
+      "buffers": "The existing track buffer. No new queue.",
+      "latency": "Fade duration from the OEM XML, in milliseconds",
+      "versionNotes": "Android 15. Disabled by default in the public doc. Ignored when the flag is false.",
+      "tag": "VERSION-DEPENDENT",
+      "sources": [
+        {
+          "kind": "doc",
+          "label": "System enforced fade",
+          "url": "https://source.android.com/docs/automotive/audio/audio-focus"
+        },
+        {
+          "kind": "aosp",
+          "label": "DirectOutputThread::processVolume_l",
+          "repo": "platform/frameworks/av",
+          "branch": "android15-release",
+          "path": "services/audioflinger/Threads.cpp",
+          "symbol": "DirectOutputThread::processVolume_l",
+          "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audioflinger/Threads.cpp"
+        }
+      ]
+    },
+    {
+      "id": "c-audiocontrol",
+      "order": 9,
+      "name": "AudioControl HAL",
+      "line": "control",
+      "short": "A second HAL for car control: duck, mute, fade, balance, and focus from outside Android.",
+      "technical": "IAudioControl is not the core audio HAL. It does not carry sample bytes. Methods read on this branch include onDevicesToDuckChange, onDevicesToMuteChange, registerFocusListener, setBalanceTowardRight, setFadeTowardFront, onAudioFocusChangeWithMetaData, setAudioDeviceGainsChanged, and setModuleChangeCallback. CarVolumeGroupMuting calls onDevicesToMuteChange when volume-group mute is enabled.",
+      "owner": "Vendor HAL",
+      "inputFormat": "Control structs such as DuckingInfo and MutingInfo",
+      "outputFormat": "Vendor action on amps or buses",
+      "process": "AudioControl HAL process, separate from audioserver",
+      "bounds": ["AudioControl HAL","audioserver"],
+      "thread": "HAL binder thread",
+      "buffers": "None for samples",
+      "latency": "Vendor",
+      "versionNotes": "The public doc says AudioControl HAL started in Android 9 with HIDL. The interface read here is the AIDL on android15-release. Do not draw the HIDL v1 getBusForContext path as current. That path was replaced, and the legacy loader rejects a newer HAL.",
+      "tag": "VERSION-DEPENDENT",
+      "sources": [
+        {
+          "kind": "aosp",
+          "label": "IAudioControl.aidl",
+          "repo": "platform/hardware/interfaces",
+          "branch": "android15-release",
+          "path": "automotive/audiocontrol/aidl/android/hardware/automotive/audiocontrol/IAudioControl.aidl",
+          "symbol": "IAudioControl",
+          "url": "https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/android15-release/automotive/audiocontrol/aidl/android/hardware/automotive/audiocontrol/IAudioControl.aidl"
+        },
+        {
+          "kind": "doc",
+          "label": "Audio control HAL",
+          "url": "https://source.android.com/docs/automotive/audio/audio-control-hal"
+        }
+      ]
+    },
+    {
+      "id": "c-gain-callback",
+      "order": 10,
+      "name": "HAL gain callback",
+      "line": "control",
+      "short": "The HAL can report gain limits back. The matching notify-HAL method was not found in the car audio Java.",
+      "technical": "IAudioControl.setAudioDeviceGainsChanged is declared as a call that notifies the HAL of gain changes. No caller of that method was found under com.android.car.audio on this branch. The opposite direction is implemented: the HAL calls onAudioDeviceGainsChanged, and CarAudioService hands it to CarAudioGainMonitor. Do not draw setAudioDeviceGainsChanged as the volume write. The volume write that was traced is setAudioDeviceGain.",
+      "owner": "Vendor HAL",
+      "inputFormat": "Reasons plus AudioGainConfigInfo",
+      "outputFormat": "Updated attenuation, limit, or mute state in CarVolumeGroup",
+      "process": "AudioControl HAL to car service",
+      "bounds": ["AudioControl HAL","car service"],
+      "thread": "HAL callback",
+      "buffers": "None",
+      "latency": "None on the sample path",
+      "versionNotes": "",
+      "tag": "UNKNOWN",
+      "limits": "The callback into CarAudioService is verified. Whether any process calls setAudioDeviceGainsChanged is unknown.",
+      "sources": [
+        {
+          "kind": "aosp",
+          "label": "IAudioControl.setAudioDeviceGainsChanged",
+          "repo": "platform/hardware/interfaces",
+          "branch": "android15-release",
+          "path": "automotive/audiocontrol/aidl/android/hardware/automotive/audiocontrol/IAudioControl.aidl",
+          "symbol": "setAudioDeviceGainsChanged",
+          "url": "https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/android15-release/automotive/audiocontrol/aidl/android/hardware/automotive/audiocontrol/IAudioControl.aidl"
+        },
+        {
+          "kind": "aosp",
+          "label": "CarAudioService HAL gain callback",
+          "repo": "platform/packages/services/Car",
+          "branch": "android15-release",
+          "path": "service/src/com/android/car/audio/CarAudioService.java",
+          "symbol": "onAudioDeviceGainsChanged",
+          "url": "https://android.googlesource.com/platform/packages/services/Car/+/refs/heads/android15-release/service/src/com/android/car/audio/CarAudioService.java"
+        }
+      ]
+    }
+  ],
+  "paths": {
+    "A": {
+      "id": "pcm",
+      "title": "Path A — decode to PCM, then a bus",
+      "summary": "The path to teach first. MediaPlayer decodes the MP3 to PCM. AudioFlinger mixes only the tracks that share that output. AAOS usually aims the media context at one bus device.",
+      "stages": [
+        {
+          "id": "a1-player-service",
+          "order": 1,
+          "name": "Playback service",
+          "line": "control",
+          "short": "MediaPlayerService runs in mediaserver, not in audioserver.",
+          "technical": "The init service is named media and runs /system/bin/mediaserver. main_mediaserver.cpp instantiates MediaPlayerService. The Java MediaPlayer class in the app was not opened, so the app-side Binder stub is not cited.",
+          "owner": "Framework (AOSP)",
+          "inputFormat": "File, fd, or URI",
+          "outputFormat": "A MediaPlayerService player in mediaserver",
+          "process": "mediaserver",
+          "bounds": ["mediaserver"],
+          "thread": "mediaserver binder thread, then NuPlayer looper",
+          "buffers": "None yet",
+          "latency": "None yet",
+          "versionNotes": "",
+          "tag": "VERIFIED",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "mediaserver.rc",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "media/mediaserver/mediaserver.rc",
+              "symbol": "service media",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/mediaserver/mediaserver.rc"
+            },
+            {
+              "kind": "aosp",
+              "label": "MediaPlayerService::instantiate",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "media/mediaserver/main_mediaserver.cpp",
+              "symbol": "MediaPlayerService::instantiate",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/mediaserver/main_mediaserver.cpp"
+            }
+          ]
+        },
+        {
+          "id": "a2-extractor",
+          "order": 2,
+          "name": "Container parse",
+          "line": "data",
+          "short": "An extractor sniffs the file before any decoder runs.",
+          "technical": "NuPlayer::GenericSource::initFromDataSource calls MediaExtractorFactory::Create. If media.stagefright.extractremote is true, which is the default, Create calls the binder service media.extractor and IMediaExtractorService.makeExtractor. The service sniffs a plugin. Encoder delay and padding are copied into the format message when the metadata has them. The MP3 plugin class was not opened.",
+          "owner": "Framework (AOSP)",
+          "inputFormat": "MP3 file bytes",
+          "outputFormat": "Compressed access units, plus sample rate, channel count, encoder delay, and encoder padding",
+          "process": "media.extractor when the remote property is true. Otherwise the calling process.",
+          "bounds": ["media.extractor","calling process"],
+          "thread": "Extractor service thread",
+          "buffers": "DataSource read. Not a playback period.",
+          "latency": "File parse. Not part of the mixer period.",
+          "versionNotes": "",
+          "limits": "Which extractor .so sniffs MP3 was not read.",
+          "tag": "VERIFIED",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "NuPlayer::GenericSource::initFromDataSource",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "media/libmediaplayerservice/nuplayer/GenericSource.cpp",
+              "symbol": "NuPlayer::GenericSource::initFromDataSource",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/libmediaplayerservice/nuplayer/GenericSource.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "MediaExtractorFactory::Create",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "media/libstagefright/MediaExtractorFactory.cpp",
+              "symbol": "MediaExtractorFactory::Create",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/libstagefright/MediaExtractorFactory.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "encoder delay and padding metadata",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "media/libstagefright/Utils.cpp",
+              "symbol": "kKeyEncoderDelay",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/libstagefright/Utils.cpp"
+            }
+          ]
+        },
+        {
+          "id": "a3-decoder",
+          "order": 3,
+          "name": "MediaCodec decode",
+          "line": "data",
+          "short": "On this path NuPlayer runs a MediaCodec. It is not an unnamed software decoder.",
+          "technical": "NuPlayer::Decoder::onConfigure calls MediaCodec::CreateByType, or CreateByComponentName. Output buffers are PCM. This is not DecoderPassThrough. Whether Codec2 runs in a separate process was not read.",
+          "owner": "Framework (AOSP)",
+          "ownerNote": "The codec implementation may be vendor. The process split was not read.",
+          "inputFormat": "Compressed access units, for example audio/mpeg",
+          "outputFormat": "PCM",
+          "process": "mediaserver calls MediaCodec. Codec process is unknown.",
+          "bounds": ["mediaserver"],
+          "thread": "NuPlayer::Decoder handler",
+          "buffers": "MediaCodec input and output buffers",
+          "latency": "Codec delay. Not a fixed number in the files that were read.",
+          "versionNotes": "Media3 / ExoPlayer is an app library and was not read. Do not draw it as this stage.",
+          "limits": "Codec2 process name is UNKNOWN.",
+          "tag": "VERIFIED",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "NuPlayer::Decoder::onConfigure",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "media/libmediaplayerservice/nuplayer/NuPlayerDecoder.cpp",
+              "symbol": "NuPlayer::Decoder::onConfigure",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/libmediaplayerservice/nuplayer/NuPlayerDecoder.cpp"
+            }
+          ]
+        },
+        {
+          "id": "a4-create-track",
+          "order": 4,
+          "name": "Create the AudioTrack",
+          "line": "control",
+          "short": "createTrack is a Binder call. The samples are not in that call.",
+          "technical": "AudioTrack::createTrack_l gets IAudioFlinger and calls createTrack with the config, flags, and attributes. The reply includes IAudioTrack. The client then calls getCblk and maps the shared block. Static mode can pass a client sharedBuffer. Streaming mode allocates the block on the server.",
+          "owner": "Framework (AOSP)",
+          "inputFormat": "PCM config and audio attributes",
+          "outputFormat": "IAudioTrack plus a shared memory block",
+          "process": "App to audioserver",
+          "bounds": ["app","audioserver"],
+          "thread": "App thread for the call. Server side is an audioserver binder thread.",
+          "buffers": "The shared block is created here and filled in the next stage",
+          "latency": "One Binder round trip",
+          "versionNotes": "",
+          "tag": "VERIFIED",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "AudioTrack::createTrack_l",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "media/libaudioclient/AudioTrack.cpp",
+              "symbol": "AudioTrack::createTrack_l",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/libaudioclient/AudioTrack.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "TrackBase shared block",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "services/audioflinger/Tracks.cpp",
+              "symbol": "audio_track_cblk_t",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audioflinger/Tracks.cpp"
+            }
+          ]
+        },
+        {
+          "id": "a5-shared-memory",
+          "order": 5,
+          "name": "App writes PCM",
+          "line": "data",
+          "short": "PCM is written into shared memory. It does not cross Binder per buffer.",
+          "technical": "The shared block starts with audio_track_cblk_t. For a streaming track the PCM bytes follow that header. AudioTrack::obtainBuffer asks AudioTrackClientProxy for a region. NuPlayer's non-callback sink calls AudioTrack::write. Callback mode is used for offload, not for this PCM path.",
+          "owner": "Framework (AOSP)",
+          "inputFormat": "PCM from MediaCodec",
+          "outputFormat": "The same PCM in the shared block",
+          "process": "mediaserver writes. audioserver reads the same pages.",
+          "bounds": ["mediaserver","audioserver"],
+          "thread": "NuPlayer renderer thread",
+          "buffers": "Track frameCount frames. This is the first playback queue.",
+          "latency": "Up to the track buffer. The size is chosen at createTrack, not a single AOSP constant.",
+          "versionNotes": "",
+          "tag": "VERIFIED",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "AudioTrack::obtainBuffer",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "media/libaudioclient/AudioTrack.cpp",
+              "symbol": "AudioTrack::obtainBuffer",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/libaudioclient/AudioTrack.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "MediaPlayerService::AudioOutput::write",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "media/libmediaplayerservice/MediaPlayerService.cpp",
+              "symbol": "MediaPlayerService::AudioOutput::write",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/libmediaplayerservice/MediaPlayerService.cpp"
+            }
+          ]
+        },
+        {
+          "id": "a6-output-thread",
+          "order": 6,
+          "name": "Output thread is a variable",
+          "line": "control",
+          "short": "The PCM path can be a mixer thread, a direct thread, or a fast track. Deep buffer is a flag, not a class.",
+          "technical": "Playback thread types include MIXER, DIRECT, OFFLOAD, DUPLICATING, SPATIALIZER, BIT_PERFECT, and MMAP. A deep-buffer music output is still a MixerThread whose HAL profile has AUDIO_OUTPUT_FLAG_DEEP_BUFFER. FastMixer is a nested thread created by MixerThread, not a fifth top-level output. Policy selects the io handle. AudioFlinger then creates the track on that thread.",
+          "owner": "Framework (AOSP)",
+          "inputFormat": "Flags and the io handle from policy",
+          "outputFormat": "One PlaybackThread subclass",
+          "process": "audioserver",
+          "bounds": ["audioserver"],
+          "thread": "The chosen PlaybackThread",
+          "buffers": "The thread sink buffer, sized from the HAL profile",
+          "latency": "Depends on the profile. Do not draw one number for every device.",
+          "versionNotes": "",
+          "tag": "VERIFIED",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "IAfThreadBase::threadTypeToString",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "services/audioflinger/Threads.cpp",
+              "symbol": "threadTypeToString",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audioflinger/Threads.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "MixerThread creates FastMixer",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "services/audioflinger/Threads.cpp",
+              "symbol": "FastMixer",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audioflinger/Threads.cpp"
+            }
+          ]
+        },
+        {
+          "id": "a7-mix",
+          "order": 7,
+          "name": "Mix, volume, resample, effects",
+          "line": "data",
+          "short": "The mixer combines tracks on this output only. Other buses are other threads.",
+          "technical": "MixerThread::threadLoop_mix calls AudioMixer::process. prepareTracks_l sets volume, ramp volume, resample, and sample rate. Effects run afterward in EffectChain::process_l. That effects loop is skipped when the thread type is OFFLOAD. If two AAOS contexts use two bus addresses, they do not meet in this mixer. A second media app on the same bus does.",
+          "owner": "Framework (AOSP)",
+          "inputFormat": "PCM tracks at their own rates and channel masks",
+          "outputFormat": "One PCM stream at the output rate and channel mask",
+          "process": "audioserver",
+          "bounds": ["audioserver"],
+          "thread": "MixerThread. Fast tracks may be mixed on FastMixer.",
+          "buffers": "mMixerBuffer, optional mEffectBuffer, then mSinkBuffer. One period is mNormalFrameCount at mSampleRate.",
+          "latency": "One mix period plus effect tail. The frame count comes from the HAL profile.",
+          "versionNotes": "",
+          "tag": "VERIFIED",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "MixerThread::threadLoop_mix",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "services/audioflinger/Threads.cpp",
+              "symbol": "MixerThread::threadLoop_mix",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audioflinger/Threads.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "EffectChain::process_l is skipped for OFFLOAD",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "services/audioflinger/Threads.cpp",
+              "symbol": "EffectChain::process_l",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audioflinger/Threads.cpp"
+            },
+            {
+              "kind": "doc",
+              "label": "Physical streams are per device, after the mix",
+              "url": "https://source.android.com/docs/automotive/audio"
+            }
+          ]
+        },
+        {
+          "id": "a8-write-hal",
+          "order": 8,
+          "name": "Write toward the HAL",
+          "line": "data",
+          "short": "The playback thread writes the sink buffer. This is still inside audioserver.",
+          "technical": "PlaybackThread::threadLoop_write writes mSinkBuffer. Mixer threads that have an NBAIO sink use that sink. Direct and offload threads call mOutput->write. If the output was opened with AUDIO_OUTPUT_FLAG_NON_BLOCKING, the thread arms AsyncCallbackThread and waits for the HAL callback.",
+          "owner": "Framework (AOSP)",
+          "inputFormat": "PCM in mSinkBuffer",
+          "outputFormat": "Bytes handed to the HAL stream wrapper",
+          "process": "audioserver",
+          "bounds": ["audioserver"],
+          "thread": "PlaybackThread",
+          "buffers": "mSinkBuffer. Underrun on a mixer thread is counted with tallyUnderrunFrames when the thread inserts zeros.",
+          "latency": "The sink period",
+          "versionNotes": "",
+          "tag": "VERIFIED",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "PlaybackThread::threadLoop_write",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "services/audioflinger/Threads.cpp",
+              "symbol": "PlaybackThread::threadLoop_write",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audioflinger/Threads.cpp"
+            }
+          ]
+        },
+        {
+          "id": "a9-aidl-fmq",
+          "order": 9,
+          "name": "AIDL HAL process boundary",
+          "line": "data",
+          "short": "Samples cross into the HAL on a fast message queue, not on Binder and not in the AudioTrack block.",
+          "technical": "For AIDL, StreamDescriptor.audio.fmq carries the bytes. The client writes the queue, then a BURST command. The HAL worker reads the queue and must drain it. It replies with how many bytes it consumed. MMAP no-irq is a different union member and is not this MP3 path. audioserver.rc starts and restarts vendor.audio-hal-aidl with audioserver. A HIDL client still exists in this tree.",
+          "owner": "Vendor HAL",
+          "ownerNote": "The client side of the queue is Framework (AOSP), in libaudiohal.",
+          "inputFormat": "PCM bytes from AudioFlinger",
+          "outputFormat": "The same bytes in the HAL process",
+          "process": "audioserver to vendor.audio-hal-aidl",
+          "bounds": ["audioserver","vendor.audio-hal-aidl"],
+          "thread": "PlaybackThread, then the HAL worker that waits on the command queue",
+          "buffers": "StreamDescriptor.bufferSizeFrames. The queue is only for the current burst. The producer must resend anything the HAL did not consume.",
+          "latency": "The HAL buffer plus whatever the HAL reports as latencyMs. LATENCY_UNKNOWN is allowed.",
+          "versionNotes": "AIDL is the HAL interface from Android 14. HIDL is the older interface. Android 15 still ships StreamHalHidl.cpp, so a device can be HIDL. New HAL APIs are AIDL-only.",
+          "tag": "VERSION-DEPENDENT",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "StreamDescriptor FMQ burst sequence",
+              "repo": "platform/hardware/interfaces",
+              "branch": "android15-release",
+              "path": "audio/aidl/android/hardware/audio/core/StreamDescriptor.aidl",
+              "symbol": "StreamDescriptor",
+              "url": "https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/android15-release/audio/aidl/android/hardware/audio/core/StreamDescriptor.aidl"
+            },
+            {
+              "kind": "aosp",
+              "label": "audioserver.rc vendor.audio-hal-aidl",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "media/audioserver/audioserver.rc",
+              "symbol": "vendor.audio-hal-aidl",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/audioserver/audioserver.rc"
+            },
+            {
+              "kind": "doc",
+              "label": "Audio HAL, AIDL from Android 14",
+              "url": "https://source.android.com/docs/core/audio/implement"
+            }
+          ]
+        },
+        {
+          "id": "a10-alsa-pcm",
+          "order": 10,
+          "name": "Reference HAL writes ALSA PCM",
+          "line": "data",
+          "short": "The AOSP reference HAL uses tinyalsa pcm_write. A car HAL may not.",
+          "technical": "StreamAlsa::transfer calls proxy_write_with_retries. That function calls pcm_write on a pcm opened with pcm_open. This is ALSA PCM, not ALSA compress. The reference HAL is the default under hardware/interfaces/audio/aidl/default. A production AAOS HAL is vendor code and was not read.",
+          "owner": "Vendor HAL",
+          "ownerNote": "pcm_write enters the kernel. Treat the driver as Kernel.",
+          "inputFormat": "PCM frames",
+          "outputFormat": "ALSA PCM periods",
+          "process": "vendor.audio-hal-aidl, then the kernel",
+          "bounds": ["vendor.audio-hal-aidl","kernel"],
+          "thread": "HAL stream worker",
+          "buffers": "ALSA period_size times period_count, plus the profile extra_latency_ms",
+          "latency": "proxy_get_latency returns that period buffer in milliseconds plus extra_latency_ms",
+          "versionNotes": "",
+          "tag": "VENDOR-SPECIFIC",
+          "limits": "Verified for the AOSP reference HAL on android15-release. Not verified for any car vendor HAL.",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "StreamAlsa::transfer",
+              "repo": "platform/hardware/interfaces",
+              "branch": "android15-release",
+              "path": "audio/aidl/default/alsa/StreamAlsa.cpp",
+              "symbol": "StreamAlsa::transfer",
+              "url": "https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/android15-release/audio/aidl/default/alsa/StreamAlsa.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "proxy_write_with_retries calls pcm_write",
+              "repo": "platform/system/media",
+              "branch": "android15-release",
+              "path": "alsa_utils/alsa_device_proxy.c",
+              "symbol": "proxy_write_with_retries",
+              "url": "https://android.googlesource.com/platform/system/media/+/refs/heads/android15-release/alsa_utils/alsa_device_proxy.c"
+            }
+          ]
+        },
+        {
+          "id": "a11-speaker",
+          "order": 11,
+          "name": "Bus, amplifier, speaker",
+          "line": "data",
+          "short": "Android hands a bus stream to the HAL. The cabin mix and the speaker are outside Android.",
+          "technical": "The AAOS overview says AUDIO_DEVICE_OUT_BUS is the generic vehicle output and is expected to be the only output type for the cabin. One bus can carry a mix Android already made. Or each context can have its own bus so the HAL ducks and routes them. Chimes that must not depend on Android stay below the HAL. The chip, the amplifier, and any vehicle network were not read.",
+          "owner": "DSP-Hardware",
+          "inputFormat": "One or more PCM bus streams",
+          "outputFormat": "Sound",
+          "process": "Outside Android",
+          "bounds": ["outside Android"],
+          "thread": "Hardware",
+          "buffers": "Vendor amplifier and DSP queues",
+          "latency": "Vendor. Not fixed by AOSP.",
+          "versionNotes": "",
+          "tag": "VENDOR-SPECIFIC",
+          "limits": "The bus model is verified in the AAOS doc. A specific SoC, amp, or audio domain is UNKNOWN.",
+          "sources": [
+            {
+              "kind": "doc",
+              "label": "AAOS audio overview, bus devices and external mixer",
+              "url": "https://source.android.com/docs/automotive/audio"
+            }
+          ]
+        }
+      ]
+    },
+    "B": {
+      "id": "offload",
+      "title": "Path B — compressed offload",
+      "summary": "Only the compressed stream reaches the offload track. AudioFlinger copies it. It does not run AudioMixer. This path is used only when the device advertises it. It is not the documented default AAOS media path.",
+      "rareOnAaos": "UNKNOWN how often shipping AAOS builds enable it. Teach it as device-dependent, not as the normal car path.",
+      "stages": [
+        {
+          "id": "b1-extractor",
+          "order": 1,
+          "name": "Same container parse",
+          "line": "data",
+          "short": "Offload still parses the file first. It does not send the raw MP3 file as an opaque blob with no metadata.",
+          "technical": "The extractor stage is the same object as Path A. Gapless fields, when present, are kKeyEncoderDelay and kKeyEncoderPadding on the track metadata.",
+          "owner": "Framework (AOSP)",
+          "inputFormat": "MP3 file bytes",
+          "outputFormat": "Compressed access units plus gapless metadata",
+          "process": "media.extractor by default",
+          "bounds": ["media.extractor"],
+          "thread": "Extractor service thread",
+          "buffers": "DataSource read",
+          "latency": "File parse",
+          "versionNotes": "",
+          "tag": "VERIFIED",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "MediaExtractorFactory::Create",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "media/libstagefright/MediaExtractorFactory.cpp",
+              "symbol": "MediaExtractorFactory::Create",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/libstagefright/MediaExtractorFactory.cpp"
+            }
+          ]
+        },
+        {
+          "id": "b2-passthrough",
+          "order": 2,
+          "name": "No MediaCodec decode",
+          "line": "data",
+          "short": "DecoderPassThrough does not decode. The compressed bytes continue.",
+          "technical": "NuPlayer::DecoderPassThrough::onConfigure opens the audio sink with offloadOnly true. The component name is pass through decoder. It reads compressed input and does not call MediaCodec::CreateByType. NuPlayer::tryOpenAudioSinkForOffload tries this first. On failure it clears mOffloadAudio and the player falls back to Path A.",
+          "owner": "Framework (AOSP)",
+          "inputFormat": "Compressed access units",
+          "outputFormat": "The same compressed bytes",
+          "process": "mediaserver",
+          "bounds": ["mediaserver"],
+          "thread": "NuPlayer::DecoderPassThrough",
+          "buffers": "The file comments say a 24 KB aggregate buffer and a 200 KB cache.",
+          "latency": "Read-ahead only. Decode delay is later, in the DSP, if offload succeeds.",
+          "versionNotes": "",
+          "tag": "VERIFIED",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "NuPlayer::DecoderPassThrough",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "media/libmediaplayerservice/nuplayer/NuPlayerDecoderPassThrough.cpp",
+              "symbol": "NuPlayer::DecoderPassThrough::onConfigure",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/libmediaplayerservice/nuplayer/NuPlayerDecoderPassThrough.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "NuPlayer::tryOpenAudioSinkForOffload",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "media/libmediaplayerservice/nuplayer/NuPlayer.cpp",
+              "symbol": "NuPlayer::tryOpenAudioSinkForOffload",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/libmediaplayerservice/nuplayer/NuPlayer.cpp"
+            }
+          ]
+        },
+        {
+          "id": "b3-offload-gate",
+          "order": 3,
+          "name": "Policy allows or refuses offload",
+          "line": "control",
+          "short": "Offload is refused unless a HAL profile advertises it and the clip passes the policy checks.",
+          "technical": "AudioPolicyManager::getOffloadSupport returns NOT_SUPPORTED, SUPPORTED, or GAPLESS_SUPPORTED. isOffloadPossible rejects mono master, audio.offload.disable, a non-music stream, video unless audio.offload.video is set, a short clip, and a non-offloadable effect. A matching profile must include AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD. GAPLESS_OFFLOAD on that profile selects the gapless result. getOutputForDevices then forces the DIRECT flag if COMPRESS_OFFLOAD is set.",
+          "owner": "Framework (AOSP)",
+          "inputFormat": "audio_offload_info_t and HAL profiles",
+          "outputFormat": "Offload allowed, gapless allowed, or refused",
+          "process": "audioserver",
+          "bounds": ["audioserver"],
+          "thread": "Policy lookup",
+          "buffers": "None",
+          "latency": "None",
+          "versionNotes": "",
+          "limits": "No car audio_policy_configuration.xml was read, so typical AAOS support is UNKNOWN.",
+          "tag": "VERIFIED",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "AudioPolicyManager::getOffloadSupport",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "services/audiopolicy/managerdefault/AudioPolicyManager.cpp",
+              "symbol": "AudioPolicyManager::getOffloadSupport",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audiopolicy/managerdefault/AudioPolicyManager.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "AudioPolicyManager::isOffloadPossible",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "services/audiopolicy/managerdefault/AudioPolicyManager.cpp",
+              "symbol": "AudioPolicyManager::isOffloadPossible",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audiopolicy/managerdefault/AudioPolicyManager.cpp"
+            }
+          ]
+        },
+        {
+          "id": "b4-offload-track",
+          "order": 4,
+          "name": "Offload AudioTrack",
+          "line": "control",
+          "short": "The sink is opened with COMPRESS_OFFLOAD. PCM flags are removed.",
+          "technical": "NuPlayerRenderer::onOpenAudioSink maps the MIME to an audio_format_t, fills audio_offload_info_t, and opens the sink with AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD. DEEP_BUFFER is cleared. On success the renderer uses a callback to pass data. The comment says metadata is sent only for offload, not for PCM that will be mixed.",
+          "owner": "Framework (AOSP)",
+          "inputFormat": "Compressed MIME, sample rate, channel mask, bit rate",
+          "outputFormat": "Offload AudioTrack",
+          "process": "mediaserver to audioserver",
+          "bounds": ["mediaserver","audioserver"],
+          "thread": "NuPlayer renderer, then createTrack binder",
+          "buffers": "Shared block, same mechanism as Path A, but the bytes are compressed",
+          "latency": "createTrack Binder call",
+          "versionNotes": "",
+          "tag": "VERIFIED",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "NuPlayer::Renderer::onOpenAudioSink",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "media/libmediaplayerservice/nuplayer/NuPlayerRenderer.cpp",
+              "symbol": "NuPlayer::Renderer::onOpenAudioSink",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/libmediaplayerservice/nuplayer/NuPlayerRenderer.cpp"
+            }
+          ]
+        },
+        {
+          "id": "b5-gapless-meta",
+          "order": 5,
+          "name": "Gapless metadata",
+          "line": "control",
+          "short": "Delay and padding are control parameters. They are not mixed as PCM.",
+          "technical": "After a successful offload open, NuPlayer::tryOpenAudioSinkForOffload calls sendMetaDataToHal. That adds sample rate, channel mask, bit rate, encoder delay, and encoder padding as audio parameters. StreamOutHalAidl copies delay and padding into AudioOffloadMetadata delayFrames and paddingFrames. The comment says the legacy keys are misnamed and the values are frames. StreamOut::updateOffloadMetadata fails if the stream was not opened as offload. A separate player feature, setNextMediaPlayer, can recycle the AudioTrack. That recycle is not the same as these delay fields.",
+          "owner": "Framework (AOSP)",
+          "inputFormat": "Extractor metadata",
+          "outputFormat": "AudioOffloadMetadata on the HAL stream",
+          "process": "mediaserver to audioserver to the HAL",
+          "bounds": ["mediaserver","audioserver","HAL"],
+          "thread": "Control call, not the mix thread",
+          "buffers": "None",
+          "latency": "None",
+          "versionNotes": "",
+          "tag": "VERIFIED",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "sendMetaDataToHal",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "media/libstagefright/Utils.cpp",
+              "symbol": "sendMetaDataToHal",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/libstagefright/Utils.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "StreamOutHalAidl::filterAndUpdateOffloadMetadata",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "media/libaudiohal/impl/StreamHalAidl.cpp",
+              "symbol": "StreamOutHalAidl::filterAndUpdateOffloadMetadata",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/media/libaudiohal/impl/StreamHalAidl.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "StreamOut::updateOffloadMetadata",
+              "repo": "platform/hardware/interfaces",
+              "branch": "android15-release",
+              "path": "audio/aidl/default/Stream.cpp",
+              "symbol": "StreamOut::updateOffloadMetadata",
+              "url": "https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/android15-release/audio/aidl/default/Stream.cpp"
+            }
+          ]
+        },
+        {
+          "id": "b6-offload-thread",
+          "order": 6,
+          "name": "Offload thread copies one track",
+          "line": "data",
+          "short": "OffloadThread does not call AudioMixer::process. It copies the latest compressed track.",
+          "technical": "OffloadThread extends DirectOutputThread with type OFFLOAD. threadLoop_mix copies mActiveTrack into mSinkBuffer with memcpy. If the format has no proportional frames, it does not pad with zeros. prepareTracks_l only writes the latest track. An older track can be flushed or invalidated. Volume is computed in processVolume_l and sent with setVolume, or through one effect chain. It is not a PCM multiply inside AudioMixer. EffectChain::process_l still runs on the offload thread to update effect state, including while waiting for an async callback. That is not a PCM mix.",
+          "owner": "Framework (AOSP)",
+          "inputFormat": "Compressed bytes in the track shared block",
+          "outputFormat": "A copy of those bytes in mSinkBuffer",
+          "process": "audioserver",
+          "bounds": ["audioserver"],
+          "thread": "OffloadThread",
+          "buffers": "Track shared block, then mSinkBuffer. Standby delay for compressed offload is kOffloadStandbyDelayNs, one second. Non-PCM sleep is kDirectMinSleepTimeUs, 10 ms.",
+          "latency": "Dominated by the HAL or DSP buffer, which can be large. The 10 ms sleep is only the thread poll.",
+          "versionNotes": "",
+          "tag": "VERIFIED",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "OffloadThread constructor",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "services/audioflinger/Threads.cpp",
+              "symbol": "OffloadThread::OffloadThread",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audioflinger/Threads.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "DirectOutputThread::threadLoop_mix",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "services/audioflinger/Threads.cpp",
+              "symbol": "DirectOutputThread::threadLoop_mix",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audioflinger/Threads.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "kOffloadStandbyDelayNs and kDirectMinSleepTimeUs",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "services/audioflinger/Threads.cpp",
+              "symbol": "kOffloadStandbyDelayNs",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audioflinger/Threads.cpp"
+            }
+          ]
+        },
+        {
+          "id": "b7-write-drain",
+          "order": 7,
+          "name": "Async write and drain",
+          "line": "data",
+          "short": "The thread writes, then waits. Drain is a separate callback, not a mixer flush.",
+          "technical": "If the output flag NON_BLOCKING was accepted, PlaybackThread sets mUseAsyncWrite and starts AsyncCallbackThread, whose thread name is Offload Cbk. threadLoop_write bumps the write sequence and calls mOutput->write. threadLoop_drain calls stream->drain. The HAL later calls onWriteReady or onDrainReady, which clear the wait. On stop, OffloadThread waits until the hardware buffer drains before it reports the track stopped, unless a flush discarded the data. If the client underruns and the HAL timestamp is not moving, the track is removed and disabled.",
+          "owner": "Framework (AOSP)",
+          "inputFormat": "Compressed bytes in mSinkBuffer",
+          "outputFormat": "A HAL write, then a drain command at end of stream",
+          "process": "audioserver to the HAL",
+          "bounds": ["audioserver","HAL"],
+          "thread": "OffloadThread and AsyncCallbackThread",
+          "buffers": "HAL compressed buffer. Size is device-specific.",
+          "latency": "The drain waits for the hardware buffer. That wait is why a stop is not instant.",
+          "versionNotes": "Partial drain for gapless is a HAL command. The reference StreamAlsa::drain only sleeps for one buffer at the PCM rate and does not implement compressed partial drain.",
+          "tag": "VERIFIED",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "PlaybackThread::onFirstRef sets async write",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "services/audioflinger/Threads.cpp",
+              "symbol": "PlaybackThread::onFirstRef",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audioflinger/Threads.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "PlaybackThread::threadLoop_drain",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "services/audioflinger/Threads.cpp",
+              "symbol": "PlaybackThread::threadLoop_drain",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audioflinger/Threads.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "onWriteReady and onDrainReady",
+              "repo": "platform/frameworks/av",
+              "branch": "android15-release",
+              "path": "services/audioflinger/Threads.cpp",
+              "symbol": "PlaybackThread::onDrainReady",
+              "url": "https://android.googlesource.com/platform/frameworks/av/+/refs/heads/android15-release/services/audioflinger/Threads.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "IModule.openOutputStream requires offloadInfo and a callback",
+              "repo": "platform/hardware/interfaces",
+              "branch": "android15-release",
+              "path": "audio/aidl/android/hardware/audio/core/IModule.aidl",
+              "symbol": "openOutputStream",
+              "url": "https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/android15-release/audio/aidl/android/hardware/audio/core/IModule.aidl"
+            }
+          ]
+        },
+        {
+          "id": "b8-kernel-compress",
+          "order": 8,
+          "name": "Kernel compress is not the reference HAL",
+          "line": "data",
+          "short": "ALSA compress exists. The AOSP reference HAL on this branch does not use it for playback.",
+          "technical": "The reference HAL requires offloadInfo when the port has COMPRESS_OFFLOAD, and it stores metadata. Its playback transfer path that was read is still StreamAlsa pcm_write. tinycompress compress_write talks to SNDRV_COMPRESS ioctls, including drain. kernel/common has snd_compr_write. Those two files were not pinned to the android15-release manifest kernel, and no AAOS vendor HAL was opened. Do not draw ALSA compress as the standard AAOS step.",
+          "owner": "Kernel",
+          "ownerNote": "Only if a vendor HAL opens a compress device. That HAL was not read.",
+          "inputFormat": "Compressed bytes",
+          "outputFormat": "DSP-decoded PCM, then a speaker",
+          "process": "Vendor HAL, then kernel or DSP",
+          "bounds": ["vendor HAL","kernel","DSP"],
+          "thread": "Vendor",
+          "buffers": "snd_compr fragment buffer, if that API is used",
+          "latency": "UNKNOWN on AAOS hardware",
+          "versionNotes": "tinycompress was read at tag android-15.0.0_r16, not at branch android15-release. The kernel file was a kernel/common commit, not an android15-6.6 tag.",
+          "limits": "Whether a typical AAOS build uses this node is UNKNOWN.",
+          "tag": "UNKNOWN",
+          "sources": [
+            {
+              "kind": "aosp",
+              "label": "Reference HAL still uses StreamAlsa PCM transfer",
+              "repo": "platform/hardware/interfaces",
+              "branch": "android15-release",
+              "path": "audio/aidl/default/alsa/StreamAlsa.cpp",
+              "symbol": "StreamAlsa::transfer",
+              "url": "https://android.googlesource.com/platform/hardware/interfaces/+/refs/heads/android15-release/audio/aidl/default/alsa/StreamAlsa.cpp"
+            },
+            {
+              "kind": "aosp",
+              "label": "tinycompress compress_write",
+              "repo": "platform/external/tinycompress",
+              "branch": "tag android-15.0.0_r16",
+              "path": "compress.c",
+              "symbol": "compress_write",
+              "url": "https://android.googlesource.com/platform/external/tinycompress/+/refs/tags/android-15.0.0_r16/compress.c"
+            },
+            {
+              "kind": "kernel",
+              "label": "snd_compr_write",
+              "repo": "kernel/common",
+              "branch": "not pinned to android15-release",
+              "path": "sound/core/compress_offload.c",
+              "symbol": "snd_compr_write",
+              "url": "https://android.googlesource.com/kernel/common/+/9992ba72327fa0d8bdc9fb624e80f5cce338a711/sound/core/compress_offload.c"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "unknowns": [
+    "Diff between android15-release and android15-automotiveos-release.",
+    "A real car or emulator audio_policy_configuration.xml on this branch, so offload frequency is unknown.",
+    "Any vendor HAL: SoC DSP, external amplifier, or separate audio domain.",
+    "AndroidX Media3 / ExoPlayer source.",
+    "The MP3 extractor plugin class name.",
+    "Whether Codec2 runs in its own process on this build.",
+    "The media.extractor init rc. The binder name media.extractor is verified.",
+    "The car service init process name. The Java class is verified.",
+    "Whether any code outside com.android.car.audio calls IAudioControl.setAudioDeviceGainsChanged.",
+    "kernel/common compress_offload.c was not pinned to an android15 kernel tag."
+  ]
+}
